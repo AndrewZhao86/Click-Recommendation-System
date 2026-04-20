@@ -1,0 +1,49 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments
+.venv
+
+# Env
+.env
+.env.local
+
+# IDE
+.idea/
+.vscode/
+
+# Docker volumes
+postgres-data/
+redis-data/
+kafka-data/
+
+# Locust output
+locust_stats/
+
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+
+
+# Claude Skills
+.claude*
+
+project-notes.md
+
+.mcp.json
+
+*.egg-info/
+
+planning/
+
+context.md
