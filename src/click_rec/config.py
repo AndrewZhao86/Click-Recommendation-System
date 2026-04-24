@@ -35,6 +35,28 @@ class Settings(BaseSettings):
     max_batch_events: int = 500
     dedupe_ttl_seconds: int = 86_400
 
+    consumer_group: str = "click-enricher"
+    consumer_max_retries: int = 3
+    consumer_backoff_base_s: float = 0.5
+    consumer_poll_timeout_ms: int = 1000
+    consumer_max_records: int = 100
+    recent_clicks_cap: int = 100
+    recent_clicks_ttl_seconds: int = 86_400
+    session_window: int = 5
+    popularity_ttl_seconds: int = 3600
+    item_cache_max_size: int = 10_000
+
+    # Phase 5 — Redis hot-cache layer
+    cache_item_ttl_seconds: int = 600
+    cache_top_category_ttl_seconds: int = 300
+    cache_lock_ttl_ms: int = 2000
+    cache_lock_wait_poll_ms: int = 20
+    cache_lock_wait_max_ms: int = 1500
+    cache_negative_ttl_seconds: int = 60
+    cache_refresh_interval_seconds: int = 60
+    cache_refresh_half_life_seconds: int = 3600
+    cache_top_max_members: int = 200
+
 
 @lru_cache
 def get_settings() -> Settings:

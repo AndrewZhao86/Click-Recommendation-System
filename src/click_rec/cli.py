@@ -1,9 +1,28 @@
 import argparse
 import asyncio
+import logging
+import os
 import sys
 
 
+def _configure_logging() -> None:
+    """Configure root logging once, at the application entrypoint.
+
+    Library modules (consumer, replay_dlq, etc.) must NOT call
+    `logging.basicConfig` themselves — `basicConfig` is a "first one
+    wins" function, so a library call silently no-ops if anything else
+    has already configured logging (pytest, FastAPI lifespan, an
+    embedding test runner). Centralising the call here keeps log format
+    consistent and predictable across every CLI subcommand.
+    """
+    logging.basicConfig(
+        level=os.environ.get("LOG_LEVEL", "INFO"),
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
+
+
 def main() -> int:
+    _configure_logging()
     parser = argparse.ArgumentParser(prog="click_rec")
     sub = parser.add_subparsers(dest="cmd", required=True)
 
@@ -26,13 +45,17 @@ def main() -> int:
 
         return asyncio.run(seed_catalog.run())
     elif args.cmd == "consumer":
-        print(f"TODO: Phase 4a — consumer (workers={args.workers})")
+        from click_rec.kafka.consumer import run_consumer_pool
+
+        return asyncio.run(run_consumer_pool(workers=args.workers))
     elif args.cmd == "replay":
         from scripts import replay_clicks
 
         return asyncio.run(replay_clicks.run(args.events))
     elif args.cmd == "replay-dlq":
-        print("TODO: Phase 4b — replay DLQ")
+        from scripts import replay_dlq
+
+        return asyncio.run(replay_dlq.run())
     elif args.cmd == "eval-llm":
         print("TODO: Phase 7 — LLM eval")
     elif args.cmd == "eval-offline":

@@ -91,3 +91,53 @@ async def release_event_id(event_id: UUID) -> None:
             "cache_unavailable: redis dedupe release failed",
             extra={"event_id": str(event_id), "error": str(exc)},
         )
+
+
+# Consumer-side dedupe lives in a separate `dedupe:consumer:` namespace so it
+# can't collide with the producer-side `dedupe:event:` key. The producer key
+# means "this event_id was accepted at the API edge"; the consumer key means
+# "all enrichment side-effects ran to completion." They're set at different
+# moments and a single shared key would let one polarity mask the other.
+_CONSUMER_PROCESSED_KEY = "dedupe:consumer:{event_id}"
+
+
+async def is_consumer_event_processed(event_id: UUID) -> bool:
+    """Return True if this event has already been fully enriched.
+
+    Per Phase 4 review C4(a): the consumer marker is set *after* all
+    side-effects succeed (see `mark_consumer_event_processed`). Replays
+    of mid-pipeline crashes therefore see no marker, re-run the
+    idempotent side-effects, and only then mark. Fail-open on Redis
+    error: returning False causes a re-run of idempotent work, which is
+    safe; returning True would silently skip a real new event.
+    """
+    client = get_redis()
+    key = _CONSUMER_PROCESSED_KEY.format(event_id=event_id)
+    try:
+        return bool(await client.exists(key))
+    except (RedisConnectionError, RedisTimeoutError, RedisError) as exc:
+        logger.warning(
+            "cache_unavailable: consumer dedupe check failed, failing open",
+            extra={"event_id": str(event_id), "error": str(exc)},
+        )
+        return False
+
+
+async def mark_consumer_event_processed(event_id: UUID) -> None:
+    """Mark an event as fully processed (after all side-effects succeed).
+
+    TTL matches `dedupe_ttl_seconds` — long enough to absorb broker
+    rebalances and replay scenarios, short enough that the keyspace
+    doesn't grow unbounded. Fail-open: a missing marker only causes
+    duplicate (idempotent) work on replay, never data loss.
+    """
+    client = get_redis()
+    ttl = get_settings().dedupe_ttl_seconds
+    key = _CONSUMER_PROCESSED_KEY.format(event_id=event_id)
+    try:
+        await client.set(key, b"1", ex=ttl)
+    except (RedisConnectionError, RedisTimeoutError, RedisError) as exc:
+        logger.warning(
+            "cache_unavailable: consumer dedupe mark failed",
+            extra={"event_id": str(event_id), "error": str(exc)},
+        )
