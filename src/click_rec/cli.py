@@ -33,10 +33,61 @@ def main() -> int:
 
     replay = sub.add_parser("replay", help="Publish synthetic events to Kafka")
     replay.add_argument("--events", type=int, default=10_000)
+    replay.add_argument(
+        "--capture-eval-log",
+        type=str,
+        default=None,
+        help="Tee click events to this JSONL path for `make eval-offline`",
+    )
 
     sub.add_parser("replay-dlq", help="Replay DLQ back to main topic")
-    sub.add_parser("eval-llm", help="Run LLM-as-judge eval on golden set")
-    sub.add_parser("eval-offline", help="Run NDCG@10 / MRR@10 offline eval")
+
+    eval_llm = sub.add_parser(
+        "eval-llm", help="Run hybrid-vs-hybrid+LLM rerank eval + LLM-as-judge"
+    )
+    eval_llm.add_argument("--num-users", type=int, default=200)
+    eval_llm.add_argument("--k", type=int, default=10)
+    eval_llm.add_argument(
+        "--judge-sample",
+        type=int,
+        default=10,
+        help="Number of queries to send to the LLM-as-judge (default: 10).",
+    )
+    eval_llm.add_argument(
+        "--eval-log",
+        type=str,
+        default=None,
+        help="Path to replay-captured JSONL (default: artifacts/eval_clicks.jsonl)",
+    )
+    eval_llm.add_argument(
+        "--output",
+        type=str,
+        default=None,
+        help="Output artifact path (default: artifacts/eval_llm_<ts>.json)",
+    )
+    eval_offline = sub.add_parser(
+        "eval-offline", help="Run NDCG@10 / MRR@10 offline eval"
+    )
+    eval_offline.add_argument("--num-users", type=int, default=200)
+    eval_offline.add_argument("--k", type=int, default=10)
+    eval_offline.add_argument(
+        "--eval-log",
+        type=str,
+        default=None,
+        help="Path to replay-captured JSONL (default: artifacts/eval_clicks.jsonl)",
+    )
+    eval_offline.add_argument(
+        "--golden",
+        type=str,
+        default=None,
+        help="Path to hand-curated golden queries (default: tests/data/golden_queries.json)",
+    )
+    eval_offline.add_argument(
+        "--output",
+        type=str,
+        default=None,
+        help="Output artifact path (default: artifacts/eval_offline_<ts>.json)",
+    )
 
     args = parser.parse_args()
 
@@ -51,15 +102,21 @@ def main() -> int:
     elif args.cmd == "replay":
         from scripts import replay_clicks
 
-        return asyncio.run(replay_clicks.run(args.events))
+        return asyncio.run(
+            replay_clicks.run(args.events, capture_eval_log=args.capture_eval_log)
+        )
     elif args.cmd == "replay-dlq":
         from scripts import replay_dlq
 
         return asyncio.run(replay_dlq.run())
     elif args.cmd == "eval-llm":
-        print("TODO: Phase 7 — LLM eval")
+        from click_rec.eval import llm as eval_llm_mod
+
+        return asyncio.run(eval_llm_mod.run_eval_llm_cli(args))
     elif args.cmd == "eval-offline":
-        print("TODO: Phase 6 — offline eval")
+        from click_rec.eval import offline
+
+        return asyncio.run(offline.run_offline_eval_cli(args))
     return 0
 
 

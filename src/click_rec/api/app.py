@@ -3,7 +3,9 @@ from fastapi import FastAPI
 from click_rec.api.lifespan import lifespan
 from click_rec.api.middleware import BodySizeLimitMiddleware
 from click_rec.api.routers.events import router as events_router
+from click_rec.api.routers.explain import router as explain_router
 from click_rec.api.routers.items import router as items_router
+from click_rec.api.routers.search import router as search_router
 from click_rec.config import get_settings
 from click_rec.telemetry.metrics import mount_metrics
 
@@ -19,6 +21,8 @@ app.add_middleware(
 
 app.include_router(events_router)
 app.include_router(items_router)
+app.include_router(search_router)
+app.include_router(explain_router)
 
 mount_metrics(app)
 

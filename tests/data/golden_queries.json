@@ -1,0 +1,102 @@
+[
+  {
+    "query": "wireless headphones",
+    "expected_categories": ["electronics/headphones", "electronics/earbuds"],
+    "expected_brands": ["Sony", "Bose", "Sennheiser", "JBL", "Anker", "Apple"]
+  },
+  {
+    "query": "running shoes",
+    "expected_categories": ["apparel/mens-running-shoes"],
+    "expected_brands": ["Nike", "Adidas", "Brooks", "Hoka", "Asics"]
+  },
+  {
+    "query": "office chair",
+    "expected_categories": ["furniture/office-chairs"],
+    "expected_brands": ["Herman Miller", "Steelcase", "Secretlab", "IKEA", "Branch"]
+  },
+  {
+    "query": "laptop",
+    "expected_categories": ["electronics/laptops"],
+    "expected_brands": ["Apple", "Dell", "HP", "Lenovo", "ASUS"]
+  },
+  {
+    "query": "coffee maker",
+    "expected_categories": ["home/coffee-makers"],
+    "expected_brands": ["Breville", "DeLonghi", "Keurig", "Ninja", "Nespresso"]
+  },
+  {
+    "query": "yoga mat",
+    "expected_categories": ["sports/yoga-mats"],
+    "expected_brands": ["Manduka", "Lululemon", "Gaiam", "Liforme", "Jade"]
+  },
+  {
+    "query": "leggings",
+    "expected_categories": ["apparel/womens-activewear"],
+    "expected_brands": ["Lululemon", "Nike", "Alo", "Athleta", "Fabletics"]
+  },
+  {
+    "query": "smartwatch",
+    "expected_categories": ["electronics/smartwatches"],
+    "expected_brands": ["Apple", "Garmin", "Fitbit", "Samsung", "Amazfit"]
+  },
+  {
+    "query": "mechanical keyboard",
+    "expected_categories": ["electronics/keyboards"],
+    "expected_brands": ["Logitech", "Keychron", "Razer", "Corsair", "HyperX"]
+  },
+  {
+    "query": "gaming mouse",
+    "expected_categories": ["electronics/mice"],
+    "expected_brands": ["Logitech", "Razer", "Apple", "SteelSeries", "Glorious"]
+  },
+  {
+    "query": "monitor",
+    "expected_categories": ["electronics/monitors"],
+    "expected_brands": ["LG", "Dell", "Samsung", "ASUS", "BenQ"]
+  },
+  {
+    "query": "smartphone",
+    "expected_categories": ["electronics/smartphones"],
+    "expected_brands": ["Apple", "Samsung", "Google", "OnePlus", "Motorola"]
+  },
+  {
+    "query": "blender",
+    "expected_categories": ["home/blenders"],
+    "expected_brands": ["Vitamix", "Ninja", "Blendtec", "KitchenAid", "Oster"]
+  },
+  {
+    "query": "air fryer",
+    "expected_categories": ["home/air-fryers"],
+    "expected_brands": ["Ninja", "Instant", "Cosori", "Philips", "Chefman"]
+  },
+  {
+    "query": "knife set",
+    "expected_categories": ["home/cutlery"],
+    "expected_brands": ["Wusthof", "Shun", "Victorinox", "Zwilling", "Global"]
+  },
+  {
+    "query": "winter jacket",
+    "expected_categories": ["apparel/mens-jackets"],
+    "expected_brands": ["Patagonia", "North Face", "Arc'teryx", "Columbia", "Carhartt"]
+  },
+  {
+    "query": "skincare",
+    "expected_categories": ["beauty/skincare"],
+    "expected_brands": ["CeraVe", "The Ordinary", "La Roche-Posay", "Paula's Choice", "Kiehl's"]
+  },
+  {
+    "query": "fragrance",
+    "expected_categories": ["beauty/fragrance"],
+    "expected_brands": ["Chanel", "Dior", "Tom Ford", "Jo Malone", "Le Labo"]
+  },
+  {
+    "query": "treadmill",
+    "expected_categories": ["sports/treadmills"],
+    "expected_brands": ["NordicTrack", "Sole", "Peloton", "ProForm", "Horizon"]
+  },
+  {
+    "query": "bicycle",
+    "expected_categories": ["sports/bicycles"],
+    "expected_brands": ["Trek", "Specialized", "Giant", "Cannondale", "Schwinn"]
+  }
+]

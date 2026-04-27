@@ -183,12 +183,25 @@ async def _load_catalogue() -> tuple[list[tuple[str, str]], dict[str, list[dict[
     return [(u.id, u.segment) for u in users], candidates
 
 
-async def run(num_events: int) -> int:
+async def run(num_events: int, capture_eval_log: str | None = None) -> int:
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
     settings = get_settings()
+
+    # Phase 6: tee click events to a JSONL file so `make eval-offline`
+    # can build the replay-gold pass without re-running Kafka. No
+    # behaviour change when the flag is absent — the writer is None and
+    # the per-click branch becomes a no-op.
+    eval_writer = None
+    if capture_eval_log:
+        eval_path = capture_eval_log
+        # Open in append mode so a partial run + resume doesn't lose data.
+        import os as _os
+        _os.makedirs(_os.path.dirname(eval_path) or ".", exist_ok=True)
+        eval_writer = open(eval_path, "a", encoding="utf-8")
+        logger.info("eval log capture enabled: %s", eval_path)
 
     logger.info("ensuring kafka topics on %s...", settings.kafka_bootstrap)
     await ensure_topics()
@@ -301,17 +314,26 @@ async def run(num_events: int) -> int:
                     await producer.send(
                         USER_CLICKS.name, click_event, key=user_id
                     )
+                    if eval_writer is not None:
+                        eval_writer.write(orjson.dumps(click_event).decode() + "\n")
                     emitted += 1
 
             if emitted - last_log >= SEND_FLUSH_EVERY:
                 # Bound producer buffer growth and surface broker errors early.
                 await producer.flush()
+                # Flush the eval log on the same cadence so a mid-run
+                # crash doesn't truncate the JSONL — the eval harness
+                # silently runs against a partial set otherwise.
+                if eval_writer is not None:
+                    eval_writer.flush()
                 logger.info("produced %d / %d events", emitted, num_events)
                 last_log = emitted
     finally:
         await producer.flush()
         await producer.stop()
         await dispose_engine()
+        if eval_writer is not None:
+            eval_writer.close()
 
     logger.info("replay complete: %d events emitted", emitted)
     return 0

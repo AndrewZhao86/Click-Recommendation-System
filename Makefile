@@ -45,10 +45,10 @@ loadtest:
 	uv run locust -f tests/load/locustfile.py --host http://localhost:8000
 
 eval-llm:
-	uv run python -m click_rec.cli eval-llm
+	uv run python -m click_rec.cli eval-llm $(ARGS)
 
 eval-offline:
-	uv run python -m click_rec.cli eval-offline
+	uv run python -m click_rec.cli eval-offline $(ARGS)
 
 test:
 	uv run pytest -v

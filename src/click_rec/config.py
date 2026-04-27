@@ -1,3 +1,4 @@
+import os
 from functools import lru_cache
 from typing import Literal
 
@@ -13,14 +14,16 @@ class Settings(BaseSettings):
         "postgresql+asyncpg://clickrec:clickrec@localhost:5432/clickrec"
     )
 
-    llm_provider: Literal["gemini", "groq", "ollama"] = "gemini"
-    llm_timeout_seconds: float = 2.0
+    # Phase 7 — Gemini-only LLM layer.
+    # `gemini_runtime_model` powers query-understanding, re-rank, /explain;
+    # `gemini_judge_model` is reserved for the LLM-as-judge eval pass so a
+    # bigger model grades the smaller one. Both default to free-tier IDs.
+    # Per-use-case timeouts live in ranker.yaml under `llm:` (loaded by
+    # `LLMConfig`), not here — secrets/model names belong in env, tunables
+    # in YAML. See planning/phase7plan.md scope decision #9.
     gemini_api_key: str = ""
-    gemini_model: str = "gemini-2.5-flash"
-    groq_api_key: str = ""
-    groq_model: str = "llama-3.1-8b-instant"
-    ollama_base_url: str = "http://localhost:11434"
-    ollama_model: str = "llama3.1:8b"
+    gemini_runtime_model: str = "gemini-2.5-flash"
+    gemini_judge_model: str = "gemini-2.5-pro"
 
     log_level: str = "INFO"
     env: str = "local"
@@ -57,7 +60,20 @@ class Settings(BaseSettings):
     cache_refresh_half_life_seconds: int = 3600
     cache_top_max_members: int = 200
 
+    # Phase 6 — hybrid ranker
+    ranker_config_path: str = "ranker.yaml"
+    ranker_enabled: bool = True
+    eval_output_dir: str = "artifacts"
+
 
 @lru_cache
 def get_settings() -> Settings:
-    return Settings()
+    settings = Settings()
+    # The google-genai SDK auto-detects `GOOGLE_API_KEY`; if the operator
+    # configured `GEMINI_API_KEY` instead, mirror it into the env so a
+    # downstream `genai.Client()` picks it up without an explicit kwarg.
+    # Done here (not in `__init__`) so settings stays pure-data and the
+    # side-effect runs once per cache-warm rather than on every read.
+    if settings.gemini_api_key and not os.environ.get("GOOGLE_API_KEY"):
+        os.environ["GOOGLE_API_KEY"] = settings.gemini_api_key
+    return settings

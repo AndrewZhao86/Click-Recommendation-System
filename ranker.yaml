@@ -1,0 +1,42 @@
+# Phase 6 hybrid-ranker tunables. Loaded by
+# `click_rec.ranker.config.load_ranker_config()`. Process restart is
+# required to re-read this file (the loader is `lru_cache`-d).
+
+candidates:
+  bm25_k: 100
+  vector_k: 100
+  candidate_cap: 200
+
+features:
+  recency_half_life_days: 30.0
+  personal_recent_clicks_n: 20
+  price_fit_scale: 200.0  # dollars
+
+weights:
+  bm25: 1.0
+  vector: 1.0
+  popularity: 0.6
+  recency: 0.4
+  personal: 1.2
+  co_click: 0.8
+  price_fit: 0.3
+
+# Phase 7 — Gemini LLM layer. Loaded by `click_rec.llm.config.load_llm_config()`.
+# Per-use-case timeouts plus the cache TTLs that gate Redis re-use.
+llm:
+  query_understanding:
+    timeout_seconds: 1.5
+    cache_ttl_seconds: 300
+  re_rank:
+    timeout_seconds: 2.0
+    top_k: 10
+  explain:
+    timeout_seconds: 3.0
+    cache_ttl_seconds: 3600
+  judge:
+    timeout_seconds: 10.0
+    sample_default: 10
+    # Pace between consecutive judge calls. gemini-2.5-pro free tier is
+    # ~5 RPM, so 13s ≈ 4.6 RPM with a safety margin. Drop to 0 if you
+    # have paid-tier quota.
+    pacing_seconds: 13.0
