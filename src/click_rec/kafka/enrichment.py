@@ -163,9 +163,10 @@ async def update_recent_clicks(
 async def increment_popularity(
     redis_client: redis.Redis, category: str, item_id: str
 ) -> None:
-    """Bump the per-category counter *and* the per-item sorted set.
+    """Bump the per-category counter, per-category sorted set, and the
+    global sorted set.
 
-    Two writes, one pipeline:
+    Three writes, one pipeline:
 
     - `popularity:{category}` — scalar counter, TTL-bounded so memory
       doesn't grow forever. Used by ranking for hot-category signals.
@@ -173,14 +174,20 @@ async def increment_popularity(
       decayed click count. The refresher task trims + decays it every
       `cache_refresh_interval_seconds`; we deliberately don't set a TTL
       here because every click would reset it — the refresher owns it.
+    - `items:top:_global` — Phase 8a global sorted set used as the
+      hard-cold-start candidate pool by `/recommendations`. The
+      refresher task (which scans `items:top:*`) trims and decays this
+      key on the same cadence as the per-category ones.
     """
     settings = get_settings()
     counter_key = f"popularity:{category}"
     top_key = f"items:top:{category}"
+    global_top_key = "items:top:_global"
     pipe = redis_client.pipeline(transaction=False)
     pipe.incr(counter_key)
     pipe.expire(counter_key, settings.popularity_ttl_seconds)
     pipe.zincrby(top_key, 1, item_id)
+    pipe.zincrby(global_top_key, 1, item_id)
     await pipe.execute()
 
 

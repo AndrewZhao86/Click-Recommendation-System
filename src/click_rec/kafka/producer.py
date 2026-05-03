@@ -35,7 +35,7 @@ async def start_producer() -> AIOKafkaProducer:
         acks="all",
         enable_idempotence=True,
         linger_ms=5,
-        compression_type="lz4",
+        compression_type="gzip",
         value_serializer=orjson.dumps,
         key_serializer=str.encode,
     )

@@ -12,7 +12,6 @@ from click_rec.llm import schemas
 from click_rec.llm.config import LLMConfig
 from click_rec.llm.query_understanding import understand_query
 
-
 # ---------------------------------------------------------------- fakes
 
 

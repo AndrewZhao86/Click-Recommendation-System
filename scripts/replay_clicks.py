@@ -227,7 +227,7 @@ async def run(num_events: int, capture_eval_log: str | None = None) -> int:
         acks="all",
         enable_idempotence=True,
         linger_ms=5,
-        compression_type="lz4",
+        compression_type="gzip",
         value_serializer=_encode,
         key_serializer=lambda s: s.encode("utf-8"),
     )

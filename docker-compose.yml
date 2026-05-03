@@ -73,6 +73,20 @@ services:
       - postgres-data:/var/lib/postgresql/data
       - ./scripts/postgres-init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
 
+  # Phase 8b — opt-in Jaeger for trace visualisation. Gated under the
+  # `observability` profile so `make up` stays minimal; `make up-obs`
+  # starts everything including this. Jaeger 1.62 accepts OTLP gRPC
+  # natively on 4317 — no separate jaeger-thrift exporter required.
+  jaeger:
+    image: jaegertracing/all-in-one:1.62.0
+    container_name: click-rec-jaeger
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "16686:16686"   # Jaeger UI
+      - "4317:4317"     # OTLP gRPC
+    profiles: ["observability"]
+
 volumes:
   kafka-data:
   redis-data:

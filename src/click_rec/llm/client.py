@@ -223,7 +223,7 @@ class GeminiClient:
                 ),
                 timeout=timeout,
             )
-        except asyncio.TimeoutError as exc:
+        except TimeoutError as exc:
             elapsed_ms = (time.monotonic() - start) * 1000.0
             llm_timeout_total.labels(use_case=use_case).inc()
             llm_request_total.labels(use_case=use_case, outcome="timeout").inc()

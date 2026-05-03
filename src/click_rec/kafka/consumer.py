@@ -50,8 +50,49 @@ from click_rec.kafka.admin import ensure_topics
 from click_rec.kafka.enrichment import apply_enrichment
 from click_rec.kafka.topics import USER_CLICKS, USER_CLICKS_DLQ
 from click_rec.models.schemas import ClickEventDTO
+from click_rec.telemetry.metrics import kafka_consumer_lag
 
 logger = logging.getLogger(__name__)
+
+
+_LAG_POLL_INTERVAL_S = 5.0
+
+
+async def _lag_poller(
+    consumer: AIOKafkaConsumer, group: str, stop_event: asyncio.Event
+) -> None:
+    """Periodically emit `kafka_consumer_lag` per assigned (topic, partition).
+
+    Reads `consumer.committed()` vs `consumer.end_offsets()` every
+    `_LAG_POLL_INTERVAL_S` seconds. Avoids requiring a JMX exporter
+    sidecar — gives a queryable lag gauge for the load-test acceptance
+    criterion ("consumer lag never exceeds 1 000").
+
+    Fail-open: any broker hiccup logs and continues on the next tick;
+    losing one sample is preferable to crashing the worker.
+    """
+    while not stop_event.is_set():
+        try:
+            assigned = consumer.assignment()
+            if assigned:
+                end_offsets = await consumer.end_offsets(list(assigned))
+                for tp in assigned:
+                    committed = await consumer.committed(tp)
+                    end = end_offsets.get(tp, 0)
+                    committed_int = committed if committed is not None else 0
+                    lag = max(0, end - committed_int)
+                    kafka_consumer_lag.labels(
+                        topic=tp.topic,
+                        partition=str(tp.partition),
+                        group=group,
+                    ).set(lag)
+        except Exception:  # noqa: BLE001
+            logger.exception("lag poller tick failed")
+
+        try:
+            await asyncio.wait_for(stop_event.wait(), timeout=_LAG_POLL_INTERVAL_S)
+        except TimeoutError:
+            continue
 
 
 class ProcessOutcome(StrEnum):
@@ -280,6 +321,10 @@ async def _worker_loop(
     )
     await consumer.start()
     logger.info("worker %d: started, joined group %s", worker_id, group_id)
+    lag_task = asyncio.create_task(
+        _lag_poller(consumer, group_id, stop_event),
+        name=f"consumer-lag-{worker_id}",
+    )
     try:
         while not stop_event.is_set():
             batch = await consumer.getmany(
@@ -318,6 +363,9 @@ async def _worker_loop(
                         extra={"worker_id": worker_id},
                     )
     finally:
+        lag_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError, Exception):
+            await lag_task
         with contextlib.suppress(Exception):
             await consumer.stop()
         logger.info("worker %d: stopped", worker_id)
@@ -372,7 +420,7 @@ async def run_consumer_pool(workers: int = 1) -> int:
         acks="all",
         enable_idempotence=True,
         linger_ms=5,
-        compression_type="lz4",
+        compression_type="gzip",
         value_serializer=orjson.dumps,
         key_serializer=lambda s: s.encode("utf-8") if s is not None else None,
     )

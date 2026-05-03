@@ -228,6 +228,65 @@ async def test_personalisation_changes_ranking(
     assert any(p > 0.0 for p in warm_personal)
 
 
+async def test_rank_with_no_query_uses_profile_vec(
+    seeded_world: dict[str, Any], stub_embedder: None
+) -> None:
+    """`/recommendations` path: no query → profile_vec ANN candidate gen."""
+    from click_rec.cache.redis_client import get_redis
+    from click_rec.db.base import get_sessionmaker
+    from click_rec.ranker import rank
+
+    client = get_redis()
+    # Seed a recent click → load_user_context derives a profile_vec.
+    await client.zadd("user:u_test:recent_clicks", {"i_hp_00": 1.0})
+
+    sm = get_sessionmaker()
+    async with sm() as session:
+        results = await rank(
+            query=None,
+            user_id="u_test",
+            session=session,
+            redis_client=client,
+            limit=5,
+        )
+    # With a derived profile vector, ANN returns *some* candidates.
+    assert len(results) > 0
+    # No query → BM25 channel was skipped, so every breakdown's bm25
+    # contribution is 0.0 (`None` raw → min-max normalised to 0).
+    for r in results:
+        assert r.score_breakdown["bm25"] == 0.0
+
+
+async def test_rank_no_query_no_profile_falls_back_to_global_top(
+    seeded_world: dict[str, Any], stub_embedder: None
+) -> None:
+    """Hard cold start: no recent_clicks, no profile_vec → items:top:_global."""
+    from click_rec.cache.redis_client import get_redis
+    from click_rec.db.base import get_sessionmaker
+    from click_rec.ranker import rank
+
+    client = get_redis()
+    # Seed the global top set with a few items.
+    await client.zadd(
+        "items:top:_global",
+        {"i_hp_00": 5.0, "i_hp_01": 3.0, "i_unrelated": 1.0},
+    )
+
+    sm = get_sessionmaker()
+    async with sm() as session:
+        results = await rank(
+            query=None,
+            user_id="u_no_history",
+            session=session,
+            redis_client=client,
+            limit=5,
+        )
+    assert len(results) > 0
+    returned_ids = {r.item.id for r in results}
+    # At least one of the seeded global-top items came back.
+    assert returned_ids & {"i_hp_00", "i_hp_01", "i_unrelated"}
+
+
 async def test_redis_outage_degrades_gracefully(
     seeded_world: dict[str, Any], stub_embedder: None
 ) -> None:

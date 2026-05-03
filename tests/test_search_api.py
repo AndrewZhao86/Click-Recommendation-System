@@ -1,8 +1,9 @@
 """HTTP-layer tests for `GET /search`.
 
 `ASGITransport` bypasses lifespan, so we never start Redis / Kafka /
-sentence-transformers in unit tests — `rank()` is patched out and we
-assert FastAPI's request-validation contract directly.
+sentence-transformers in unit tests — `rank()` and the LLM helpers are
+patched out and we assert FastAPI's request-validation contract plus
+the Phase 8a `use_llm` wiring.
 """
 
 from __future__ import annotations
@@ -15,8 +16,20 @@ from httpx import ASGITransport, AsyncClient
 
 from click_rec.api.app import app
 from click_rec.api.routers import search as search_module
+from click_rec.llm.schemas import PriceBias, QueryIntent
 from click_rec.models.schemas import ItemDTO
+from click_rec.ranker.features import UserContext
 from click_rec.ranker.schemas import RankedItemDTO
+
+
+def _empty_ctx() -> UserContext:
+    return UserContext(
+        recent_item_ids=[],
+        profile_vec=None,
+        avg_price=None,
+        recent_categories=["headphones"],
+        recent_brands=["Sony"],
+    )
 
 
 @pytest.fixture
@@ -56,7 +69,7 @@ def stub_rank(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
     """Replace `ranker.rank` with a recording stub."""
     captured: dict[str, Any] = {}
 
-    async def fake_rank(*, query: str, **kwargs: Any) -> list[RankedItemDTO]:
+    async def fake_rank(*, query: str | None, **kwargs: Any) -> list[RankedItemDTO]:
         captured["query"] = query
         captured.update(kwargs)
         return [_ranked("i1", 0.7), _ranked("i2", 0.4)]
@@ -67,11 +80,34 @@ def stub_rank(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
 
 @pytest.fixture(autouse=True)
 def stub_redis(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Force `get_redis()` to RuntimeError so the route's `client=None` path runs."""
-    def _raise() -> None:
-        raise RuntimeError("redis not started")
+    """Force `maybe_redis()` to return None so the route's no-Redis path runs."""
+    monkeypatch.setattr(search_module, "maybe_redis", lambda: None)
 
-    monkeypatch.setattr(search_module, "get_redis", _raise)
+
+@pytest.fixture(autouse=True)
+def stub_user_context(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Skip the route's pre-load of `UserContext` — return a stable cold ctx."""
+
+    async def fake_load(**_kwargs: Any) -> UserContext:
+        return _empty_ctx()
+
+    monkeypatch.setattr(search_module, "load_user_context", fake_load)
+
+
+@pytest.fixture
+def stub_summary(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
+    """Replace `build_summary` with a recording stub returning a fixed string."""
+    captured: dict[str, Any] = {}
+
+    def fake_build(**kwargs: Any) -> str:
+        captured.update(kwargs)
+        intent = kwargs.get("intent")
+        if intent is not None:
+            return "recent categories: headphones; intent: category=headphones"
+        return "recent categories: headphones"
+
+    monkeypatch.setattr(search_module, "build_summary", fake_build)
+    return captured
 
 
 async def test_search_returns_200_with_breakdowns(
@@ -85,7 +121,6 @@ async def test_search_returns_200_with_breakdowns(
     assert body[0]["item"]["id"] == "i1"
     assert body[0]["score"] == 0.7
     breakdown = body[0]["score_breakdown"]
-    # All seven feature keys present — debuggability bullet (plan §8 step 4).
     assert set(breakdown.keys()) == {
         "bm25",
         "vector",
@@ -96,6 +131,17 @@ async def test_search_returns_200_with_breakdowns(
         "price_fit",
     }
     assert stub_rank["query"] == "wireless headphones"
+
+
+async def test_search_default_limit_is_ten(
+    client: AsyncClient, stub_rank: dict[str, Any]
+) -> None:
+    """Phase 8a default is 10 (down from Phase 6's interim 20)."""
+    resp = await client.get("/search", params={"q": "x"})
+    assert resp.status_code == 200
+    # `rank` is asked for at least 20 so the LLM has reorder headroom,
+    # but the response is sliced to `limit` (default 10).
+    assert stub_rank["limit"] >= 20
 
 
 async def test_search_empty_query_returns_422(client: AsyncClient) -> None:
@@ -136,3 +182,146 @@ async def test_search_503_when_ranker_raises(
     monkeypatch.setattr(search_module, "rank", boom)
     resp = await client.get("/search", params={"q": "anything"})
     assert resp.status_code == 503
+
+
+# ============================================================ Phase 8a: use_llm wiring
+
+
+async def test_search_use_llm_false_skips_llm_call(
+    client: AsyncClient,
+    stub_rank: dict[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`use_llm=false` must not invoke `understand_query` or `rerank_top_k`."""
+    qu_calls: list[Any] = []
+    rr_calls: list[Any] = []
+
+    async def fake_qu(*a: Any, **kw: Any) -> None:
+        qu_calls.append((a, kw))
+        return None
+
+    async def fake_rr(**kw: Any) -> None:
+        rr_calls.append(kw)
+        return None
+
+    monkeypatch.setattr(search_module, "understand_query", fake_qu)
+    monkeypatch.setattr(search_module, "rerank_top_k", fake_rr)
+
+    resp = await client.get("/search", params={"q": "x", "use_llm": "false"})
+    assert resp.status_code == 200
+    assert qu_calls == []
+    assert rr_calls == []
+
+
+async def test_search_use_llm_true_attaches_rationales(
+    client: AsyncClient,
+    stub_rank: dict[str, Any],
+    stub_summary: dict[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`use_llm=true` reorders + attaches rationales returned by the LLM."""
+
+    async def fake_qu(*a: Any, **kw: Any) -> QueryIntent:
+        return QueryIntent(category="headphones", attrs=["wireless"], price_bias=PriceBias.low)
+
+    async def fake_rr(**kw: Any) -> list[RankedItemDTO]:
+        # Reverse + add rationales.
+        out = []
+        for c in reversed(kw["candidates"]):
+            out.append(c.model_copy(update={"llm_rationale": f"because {c.item.id}"}))
+        return out
+
+    monkeypatch.setattr(search_module, "understand_query", fake_qu)
+    monkeypatch.setattr(search_module, "rerank_top_k", fake_rr)
+
+    resp = await client.get(
+        "/search", params={"q": "wireless headphones", "use_llm": "true"}
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    # Reversed order: i2 first, then i1.
+    assert body[0]["item"]["id"] == "i2"
+    assert body[0]["llm_rationale"] == "because i2"
+    assert body[1]["llm_rationale"] == "because i1"
+
+
+async def test_search_intent_appended_to_summary(
+    client: AsyncClient,
+    stub_rank: dict[str, Any],
+    stub_summary: dict[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The intent string must be threaded into the summary passed to the LLM."""
+    captured_summary: list[str | None] = []
+
+    async def fake_qu(*a: Any, **kw: Any) -> QueryIntent:
+        return QueryIntent(category="headphones", attrs=["wireless"], price_bias=None)
+
+    async def fake_rr(**kw: Any) -> list[RankedItemDTO]:
+        captured_summary.append(kw["user_profile_summary"])
+        return list(kw["candidates"])
+
+    monkeypatch.setattr(search_module, "understand_query", fake_qu)
+    monkeypatch.setattr(search_module, "rerank_top_k", fake_rr)
+
+    resp = await client.get(
+        "/search",
+        params={"q": "wireless headphones", "use_llm": "true", "user_id": "u1"},
+    )
+    assert resp.status_code == 200
+    assert captured_summary[0] is not None
+    assert "intent" in captured_summary[0]
+    # The QueryIntent populated by `fake_qu` was passed into `build_summary`.
+    assert stub_summary["intent"] is not None
+    assert stub_summary["intent"].category == "headphones"
+
+
+async def test_search_intent_failure_does_not_block_rerank(
+    client: AsyncClient,
+    stub_rank: dict[str, Any],
+    stub_summary: dict[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`understand_query` returning None still runs the re-rank with no intent."""
+    rr_called = {"called": False}
+
+    async def fake_qu(*a: Any, **kw: Any) -> None:
+        return None  # fail-open
+
+    async def fake_rr(**kw: Any) -> list[RankedItemDTO]:
+        rr_called["called"] = True
+        return list(kw["candidates"])
+
+    monkeypatch.setattr(search_module, "understand_query", fake_qu)
+    monkeypatch.setattr(search_module, "rerank_top_k", fake_rr)
+
+    resp = await client.get(
+        "/search", params={"q": "x", "use_llm": "true"}
+    )
+    assert resp.status_code == 200
+    assert rr_called["called"] is True
+
+
+async def test_search_use_llm_falls_back_when_rerank_returns_none(
+    client: AsyncClient,
+    stub_rank: dict[str, Any],
+    stub_summary: dict[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`rerank_top_k` returning None falls back to the hybrid order."""
+
+    async def fake_qu(*a: Any, **kw: Any) -> None:
+        return None
+
+    async def fake_rr(**kw: Any) -> None:
+        return None
+
+    monkeypatch.setattr(search_module, "understand_query", fake_qu)
+    monkeypatch.setattr(search_module, "rerank_top_k", fake_rr)
+
+    resp = await client.get("/search", params={"q": "x", "use_llm": "true"})
+    assert resp.status_code == 200
+    body = resp.json()
+    # Hybrid order preserved: i1 first.
+    assert body[0]["item"]["id"] == "i1"
+    assert body[0].get("llm_rationale") is None

@@ -1,24 +1,24 @@
 import argparse
 import asyncio
-import logging
 import os
 import sys
 
 
 def _configure_logging() -> None:
-    """Configure root logging once, at the application entrypoint.
+    """Configure structlog JSON logging + OTEL tracing for every CLI subcommand.
 
+    Phase 8b: lazy imports keep `python -m click_rec.cli --help` fast —
+    we don't want every shell completion to drag in the OTEL SDK.
     Library modules (consumer, replay_dlq, etc.) must NOT call
-    `logging.basicConfig` themselves — `basicConfig` is a "first one
-    wins" function, so a library call silently no-ops if anything else
-    has already configured logging (pytest, FastAPI lifespan, an
-    embedding test runner). Centralising the call here keeps log format
-    consistent and predictable across every CLI subcommand.
+    `logging.basicConfig` themselves; structlog's `ProcessorFormatter`
+    bridge converts every existing `logger.info("event_x", extra=...)`
+    call site into a JSON record with trace correlation.
     """
-    logging.basicConfig(
-        level=os.environ.get("LOG_LEVEL", "INFO"),
-        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-    )
+    from click_rec.telemetry.logging import configure_logging
+    from click_rec.telemetry.tracing import init_tracing
+
+    configure_logging(os.environ.get("LOG_LEVEL", "INFO"))
+    init_tracing()
 
 
 def main() -> int:

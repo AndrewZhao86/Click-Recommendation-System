@@ -31,7 +31,7 @@ from click_rec.ranker.candidates import (
 )
 from click_rec.ranker.config import RankerConfig, load_ranker_config
 from click_rec.ranker.embedder import encode_query
-from click_rec.ranker.features import gather_features, load_user_context
+from click_rec.ranker.features import UserContext, gather_features, load_user_context
 from click_rec.ranker.schemas import RankedItemDTO
 from click_rec.ranker.scorer import score as score_features
 from click_rec.telemetry.metrics import (
@@ -67,59 +67,116 @@ def _candidate_to_item_dto(cand: object) -> ItemDTO:
 
 async def rank(
     *,
-    query: str,
+    query: str | None,
     user_id: str | None,
     session: AsyncSession,
     redis_client: redis.Redis | None,
     limit: int = 20,
     cfg: RankerConfig | None = None,
+    user_ctx: UserContext | None = None,
 ) -> list[RankedItemDTO]:
     """Rank items for a query, optionally personalised by `user_id`.
 
+    Phase 8a: `query` may be None for the `/recommendations` path. With
+    no query the pipeline:
+
+    1. Loads the user context first (so `profile_vec` is available).
+    2. Skips `encode_query` (the embed stage records 0).
+    3. Hands `profile_vec` + `recent_categories` to `generate_candidates`
+       which uses pgvector ANN over the profile vector (warm) or
+       Redis top-sets (cold).
+
+    `user_ctx` may be supplied by the caller to avoid a duplicate
+    `load_user_context` round-trip when the route also needs the same
+    context for downstream work (e.g. building the LLM re-rank profile
+    summary). When omitted, the pipeline loads it itself.
+
     Fail-open contract:
-    - Both channels empty → returns `[]`, increments
-      `ranker_empty_result_total`.
+    - No candidates → returns `[]`, increments `ranker_empty_result_total`.
     - Redis outage → cold-start path, never raises.
-    - Embedder failure (model load) → bubbles as a 5xx; the route layer
-      decides how to surface it. The ranker has no useful answer
-      without a query vector.
+    - Embedder failure (query mode only) → bubbles as a 5xx; the route
+      layer decides how to surface it.
     """
     cfg = cfg or load_ranker_config()
 
     total_start = time.monotonic()
 
-    # 1. Encode the query.
-    enc_start = time.monotonic()
-    qvec = await encode_query(query)
-    ranker_latency_seconds.labels(stage="embed").observe(time.monotonic() - enc_start)
-
-    # 2. Concurrent BM25 + vector candidate gen. Both share the same
-    #    session, so the gather is sequential on the wire — we keep it
-    #    structured so future Phase 8c work can split sessions.
-    cand_start = time.monotonic()
-    raw_cands = await generate_candidates(
-        query=query, qvec=qvec, session=session, cfg=cfg
-    )
-    if not raw_cands:
-        ranker_empty_result_total.inc()
-        ranker_candidates_total.observe(0)
-        ranker_latency_seconds.labels(stage="total").observe(
-            time.monotonic() - total_start
-        )
-        return []
-    ranker_candidates_total.observe(len(raw_cands))
-
-    # 3. Bulk fetch candidate rows + load user context concurrently.
     import asyncio
 
-    cands_task = fetch_candidate_rows(session, raw_cands)
-    ctx_task = load_user_context(
-        user_id=user_id, session=session, redis_client=redis_client, cfg=cfg
-    )
-    cands, user_ctx = await asyncio.gather(cands_task, ctx_task)
-    ranker_latency_seconds.labels(stage="candidates").observe(
-        time.monotonic() - cand_start
-    )
+    if query is None:
+        # No-query path: ensure user context (loaded by caller or here)
+        # so its profile_vec / recent_categories are available for
+        # candidate gen.
+        ranker_latency_seconds.labels(stage="embed").observe(0.0)
+        cand_start = time.monotonic()
+        if user_ctx is None:
+            user_ctx = await load_user_context(
+                user_id=user_id,
+                session=session,
+                redis_client=redis_client,
+                cfg=cfg,
+            )
+        raw_cands = await generate_candidates(
+            query=None,
+            qvec=None,
+            session=session,
+            cfg=cfg,
+            profile_vec=user_ctx.profile_vec,
+            recent_categories=user_ctx.recent_categories,
+            redis_client=redis_client,
+        )
+        if not raw_cands:
+            ranker_empty_result_total.inc()
+            ranker_candidates_total.observe(0)
+            ranker_latency_seconds.labels(stage="candidates").observe(
+                time.monotonic() - cand_start
+            )
+            ranker_latency_seconds.labels(stage="total").observe(
+                time.monotonic() - total_start
+            )
+            return []
+        ranker_candidates_total.observe(len(raw_cands))
+        cands = await fetch_candidate_rows(session, raw_cands)
+        ranker_latency_seconds.labels(stage="candidates").observe(
+            time.monotonic() - cand_start
+        )
+    else:
+        # Query path: encode → BM25 + vector → gather context.
+        enc_start = time.monotonic()
+        qvec = await encode_query(query)
+        ranker_latency_seconds.labels(stage="embed").observe(
+            time.monotonic() - enc_start
+        )
+
+        cand_start = time.monotonic()
+        raw_cands = await generate_candidates(
+            query=query,
+            qvec=qvec,
+            session=session,
+            cfg=cfg,
+            redis_client=redis_client,
+        )
+        if not raw_cands:
+            ranker_empty_result_total.inc()
+            ranker_candidates_total.observe(0)
+            ranker_latency_seconds.labels(stage="total").observe(
+                time.monotonic() - total_start
+            )
+            return []
+        ranker_candidates_total.observe(len(raw_cands))
+
+        if user_ctx is None:
+            # Parallelise the row fetch with the user-context load.
+            cands_task = fetch_candidate_rows(session, raw_cands)
+            ctx_task = load_user_context(
+                user_id=user_id, session=session, redis_client=redis_client, cfg=cfg
+            )
+            cands, user_ctx = await asyncio.gather(cands_task, ctx_task)
+        else:
+            cands = await fetch_candidate_rows(session, raw_cands)
+        ranker_latency_seconds.labels(stage="candidates").observe(
+            time.monotonic() - cand_start
+        )
 
     if not cands:
         ranker_empty_result_total.inc()

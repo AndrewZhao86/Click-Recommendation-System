@@ -13,7 +13,13 @@ that build a bare FastAPI app don't accidentally expose global state.
 from __future__ import annotations
 
 from fastapi import FastAPI
-from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
+from prometheus_client import (
+    CONTENT_TYPE_LATEST,
+    Counter,
+    Gauge,
+    Histogram,
+    generate_latest,
+)
 
 from click_rec.config import get_settings
 
@@ -109,6 +115,18 @@ llm_cache_hit_total = Counter(
     "llm_cache_hit_total",
     "Redis cache hits for LLM responses.",
     ["use_case"],
+)
+
+# ---------------------------------------------------------------- Phase 8b Kafka
+
+# `prometheus-fastapi-instrumentator` owns `http_requests_total` and
+# `http_request_duration_seconds` — it registers them against
+# `prometheus_client.REGISTRY` on its own. Declared here as a comment so
+# greppers find both names at the same site.
+kafka_consumer_lag = Gauge(
+    "kafka_consumer_lag",
+    "Records behind the head per (topic, partition, group).",
+    ["topic", "partition", "group"],
 )
 
 

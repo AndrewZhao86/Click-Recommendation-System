@@ -28,6 +28,8 @@ kafka-data/
 # Locust output
 locust_stats/
 
+artifacts/
+
 
 # Python
 __pycache__/

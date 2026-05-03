@@ -31,6 +31,13 @@ class Settings(BaseSettings):
     embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"
 
     otel_exporter: Literal["stdout", "jaeger", "none"] = "stdout"
+    # Phase 8b: Jaeger 1.62 accepts OTLP gRPC natively on 4317. The dev
+    # docker-compose maps that port; on a host where it's taken the
+    # operator overrides this to e.g. http://localhost:4318.
+    otel_endpoint: str = "http://localhost:4317"
+    # Default service name for the API process; the consumer overrides
+    # this via OTEL_SERVICE_NAME so trace waterfalls split cleanly.
+    otel_service_name: str = "searchpulse-api"
     prometheus_enabled: bool = True
 
     max_event_bytes: int = 1024
@@ -59,6 +66,11 @@ class Settings(BaseSettings):
     cache_refresh_interval_seconds: int = 60
     cache_refresh_half_life_seconds: int = 3600
     cache_top_max_members: int = 200
+
+    # Phase 8 — query-embedding cache (in front of SentenceTransformer).
+    # Sized at 1 day: query semantics don't drift in shorter windows and
+    # the model name in the key prefix invalidates on swap.
+    query_embedding_ttl_seconds: int = 86_400
 
     # Phase 6 — hybrid ranker
     ranker_config_path: str = "ranker.yaml"

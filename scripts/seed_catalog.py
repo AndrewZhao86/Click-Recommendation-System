@@ -211,6 +211,30 @@ async def _bulk_insert_users(session: AsyncSession, rows: list[dict[str, Any]]) 
     logger.info("inserted %d users", len(rows))
 
 
+async def _write_seeded_user_ids(session: AsyncSession) -> None:
+    """Phase 8c: dump existing user_ids to `artifacts/seeded_users.txt` for Locust.
+
+    Reads from the DB so this works on both first-time and re-seed runs:
+    a developer who deletes the file then re-runs `make seed` against an
+    already-populated catalogue still gets a fresh fixture. Best-effort —
+    a write failure only means the loadtest must be pointed at a custom
+    file via the SEEDED_USERS env.
+    """
+    from pathlib import Path
+
+    out = Path(get_settings().eval_output_dir) / "seeded_users.txt"
+    res = await session.execute(select(UserAccount.id).order_by(UserAccount.id))
+    user_ids = list(res.scalars().all())
+    try:
+        out.parent.mkdir(parents=True, exist_ok=True)
+        with out.open("w", encoding="utf-8") as fh:
+            for uid in user_ids:
+                fh.write(f"{uid}\n")
+        logger.info("wrote %d user ids to %s", len(user_ids), out)
+    except OSError as exc:  # noqa: BLE001
+        logger.warning("could not write seeded_users.txt: %s", exc)
+
+
 async def _rebuild_ivfflat_index(session: AsyncSession) -> None:
     # Drop-and-recreate so centroids are trained on the populated table — an
     # index built on empty data has garbage centroids and ruins recall.
@@ -236,6 +260,7 @@ async def run() -> int:
         current = (
             await session.execute(select(func.count()).select_from(Item))
         ).scalar_one()
+
     if current >= TARGET_ITEMS:
         logger.info("catalogue already seeded (%d items) — skipping", current)
         async with sessionmaker() as session:
@@ -251,29 +276,34 @@ async def run() -> int:
                 logger.info("ivfflat index already present — skipping rebuild")
             else:
                 await _rebuild_ivfflat_index(session)
-        await dispose_engine()
-        return 0
+    else:
+        rng = random.Random(RANDOM_SEED)
+        np_rng = np.random.default_rng(RANDOM_SEED)
+        fake = Faker()
+        Faker.seed(RANDOM_SEED)
 
-    rng = random.Random(RANDOM_SEED)
-    np_rng = np.random.default_rng(RANDOM_SEED)
-    fake = Faker()
-    Faker.seed(RANDOM_SEED)
+        logger.info("generating %d items across %d categories...", TARGET_ITEMS, len(CATEGORIES))
+        item_rows = _generate_item_rows(rng, np_rng, fake)
+        _embed_items(item_rows)
 
-    logger.info("generating %d items across %d categories...", TARGET_ITEMS, len(CATEGORIES))
-    item_rows = _generate_item_rows(rng, np_rng, fake)
-    _embed_items(item_rows)
+        async with sessionmaker() as session:
+            await _bulk_insert_items(session, item_rows)
 
+        logger.info("generating %d users across %d segments...", TARGET_USERS, len(USER_SEGMENTS))
+        user_rows = _generate_user_rows(rng)
+        async with sessionmaker() as session:
+            await _bulk_insert_users(session, user_rows)
+
+        async with sessionmaker() as session:
+            await _rebuild_ivfflat_index(session)
+
+        logger.info("seed complete: %d items, %d users", len(item_rows), len(user_rows))
+
+    # Always (re)write the locust user-id fixture from DB so a developer
+    # who deletes artifacts/seeded_users.txt and re-runs `make seed`
+    # against an already-populated catalogue still gets a fresh file.
     async with sessionmaker() as session:
-        await _bulk_insert_items(session, item_rows)
-
-    logger.info("generating %d users across %d segments...", TARGET_USERS, len(USER_SEGMENTS))
-    user_rows = _generate_user_rows(rng)
-    async with sessionmaker() as session:
-        await _bulk_insert_users(session, user_rows)
-
-    async with sessionmaker() as session:
-        await _rebuild_ivfflat_index(session)
+        await _write_seeded_user_ids(session)
 
     await dispose_engine()
-    logger.info("seed complete: %d items, %d users", len(item_rows), len(user_rows))
     return 0

@@ -19,7 +19,8 @@ from __future__ import annotations
 
 import logging
 import math
-from dataclasses import dataclass
+from collections import Counter
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
@@ -31,6 +32,7 @@ from redis.exceptions import TimeoutError as RedisTimeoutError
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from click_rec.ranker.candidates import _coerce_embedding
 from click_rec.ranker.config import RankerConfig
 from click_rec.ranker.schemas import RankingCandidate
 from click_rec.telemetry.metrics import cache_unavailable_total
@@ -45,20 +47,32 @@ _REDIS_ERRORS = (RedisConnectionError, RedisTimeoutError, RedisError)
 
 @dataclass(slots=True)
 class UserContext:
-    """Per-request user state. Cold-start = empty list / None / None."""
+    """Per-request user state. Cold-start = empty list / None / None / [] / [].
+
+    `recent_categories` and `recent_brands` (Phase 8a) are derived from
+    the same row set that produces `profile_vec` / `avg_price` — adding
+    them costs two extra columns in the same SELECT, no extra round trip.
+    Both are top-3-by-frequency over the recent-click rows so the
+    re-rank prompt summary stays compact and high-signal.
+    """
 
     recent_item_ids: list[str]
     profile_vec: list[float] | None
     avg_price: float | None
+    recent_categories: list[str] = field(default_factory=list)
+    recent_brands: list[str] = field(default_factory=list)
 
 
 _USER_LOAD_SQL = text(
     """
-    SELECT id, price, embedding
+    SELECT id, price, embedding, category, brand
       FROM item
      WHERE id = ANY(:ids)
     """
 )
+
+
+_TOP_RECENT_K = 3
 
 
 async def load_user_context(
@@ -101,30 +115,42 @@ async def load_user_context(
     rows = res.mappings().all()
     if not rows:
         # Stale recent_clicks (items since deleted). Treat as cold.
-        return UserContext(recent_item_ids=recent_ids, profile_vec=None, avg_price=None)
+        return UserContext(
+            recent_item_ids=recent_ids,
+            profile_vec=None,
+            avg_price=None,
+            recent_categories=[],
+            recent_brands=[],
+        )
 
     prices = [float(r["price"]) for r in rows if r["price"] is not None]
     avg_price = float(np.mean(prices)) if prices else None
 
     vecs: list[list[float]] = []
     for r in rows:
-        emb = r["embedding"]
-        if emb is None:
-            continue
-        if not isinstance(emb, list):
-            try:
-                emb = list(emb)
-            except TypeError:
-                continue
-        vecs.append(emb)
+        emb = _coerce_embedding(r["embedding"])
+        if emb is not None:
+            vecs.append(emb)
     if vecs:
         arr = np.asarray(vecs, dtype=np.float64)
         profile_vec = arr.mean(axis=0).tolist()
     else:
         profile_vec = None
 
+    # Top-3 by frequency over the same in-flight rows (no extra round
+    # trip). `Counter.most_common` is insertion-stable so ties are broken
+    # by first occurrence — deterministic for tests.
+    cat_counter = Counter(r["category"] for r in rows if r["category"])
+    brand_counter = Counter(r["brand"] for r in rows if r["brand"])
+    recent_categories = [c for c, _ in cat_counter.most_common(_TOP_RECENT_K)]
+    recent_brands = [b for b, _ in brand_counter.most_common(_TOP_RECENT_K)]
+
     return UserContext(
-        recent_item_ids=recent_ids, profile_vec=profile_vec, avg_price=avg_price
+        recent_item_ids=recent_ids,
+        profile_vec=profile_vec,
+        avg_price=avg_price,
+        recent_categories=recent_categories,
+        recent_brands=recent_brands,
     )
 
 

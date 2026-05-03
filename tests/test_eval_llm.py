@@ -14,7 +14,6 @@ import pytest
 
 from click_rec.eval import llm as eval_llm_mod
 
-
 _EXPECTED_KEYS = {
     "hybrid_ndcg@10",
     "hybrid_mrr@10",
