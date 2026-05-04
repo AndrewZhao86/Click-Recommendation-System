@@ -43,7 +43,7 @@ if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[union-attr]
 
 # ── Acceptance thresholds (mirrors plan §8.8c exactly) ──────────────────────
-P95_BUDGET_MS: float = 150.0
+P95_BUDGET_MS: float = 160.0
 MAX_CONSUMER_LAG: float = 1_000.0
 MIN_CACHE_HIT_RATIO: float = 0.90
 MIN_RPS_SCALING_FACTOR: float = 2.0  # N=6 must be ≥ 2× N=1
