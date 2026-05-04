@@ -232,6 +232,14 @@ def personal_scores(
     if profile_vec is None or not cands:
         return [0.0] * len(cands)
 
+    # Fast path: cosine was computed in pgvector at fetch time and is
+    # already on the candidate. Avoids transferring per-row embeddings
+    # and the numpy loop below. We require all candidates to have the
+    # value — partial fall-back to numpy here would need the embedding
+    # column the new SQL no longer fetches.
+    if all(c.personal_raw is not None for c in cands):
+        return [max(0.0, float(c.personal_raw or 0.0)) for c in cands]
+
     pv = np.asarray(profile_vec, dtype=np.float64)
     pv_norm = float(np.linalg.norm(pv))
     if pv_norm == 0.0:

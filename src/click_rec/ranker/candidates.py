@@ -19,6 +19,7 @@ the typical case where vectors are in the same hemisphere).
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from dataclasses import dataclass
 from datetime import datetime
@@ -197,10 +198,11 @@ async def generate_candidates(
       when available, falling back to per-category Redis top-sets, then
       to the global popularity sorted set on a hard cold start.
 
-    Both channels run on the same `AsyncSession`, so they're sequential
-    on the wire — gather is still useful here for clean failure
-    isolation (one channel raising doesn't tank the other) but is
-    strictly serial because asyncpg connections aren't multiplexed.
+    Both channels execute concurrently. asyncpg connections are not
+    multiplexed, so true parallelism requires a second `AsyncSession` —
+    we open one from the module-level sessionmaker for the vector query.
+    This collapses the two ~150 ms queries from sequential (~300 ms) to
+    the slower of the two (~150 ms).
     """
     if query is not None:
         # Query path needs both channels; if `qvec` is missing we degrade
@@ -209,8 +211,13 @@ async def generate_candidates(
             bm25_rows = await _bm25(session, query, cfg.bm25_k)
             vector_rows: list[tuple[str, float]] = []
         else:
-            bm25_rows = await _bm25(session, query, cfg.bm25_k)
-            vector_rows = await _vector(session, qvec, cfg.vector_k)
+            from click_rec.db.base import get_sessionmaker
+
+            async with get_sessionmaker()() as session2:
+                bm25_rows, vector_rows = await asyncio.gather(
+                    _bm25(session, query, cfg.bm25_k),
+                    _vector(session2, qvec, cfg.vector_k),
+                )
 
         merged: dict[str, RawCandidate] = {}
         for item_id, score in bm25_rows:
@@ -258,10 +265,28 @@ async def generate_candidates(
     return await _global_top_candidates(redis_client, cfg.candidate_cap)
 
 
+# Two SELECT variants. Both deliberately *omit* the `embedding` column —
+# transferring it for ~98 candidates × 384 floats is ~150 KB per request,
+# and the only consumer was `personal_scores` (cosine vs. user profile
+# vector). When `profile_vec` is known at fetch time we push that cosine
+# into pgvector via the `<=>` operator and return a single float per row
+# (`personal_raw`) instead of the whole vector. When it isn't, the
+# personal feature is 0 anyway (cold start), so dropping the column is
+# free.
 _FETCH_ROWS_SQL = text(
     """
     SELECT id, title, description, category, brand, price, created_at,
-           popularity_score, embedding
+           popularity_score
+      FROM item
+     WHERE id = ANY(:ids)
+    """
+).bindparams(bindparam("ids", expanding=False))
+
+_FETCH_ROWS_WITH_PERSONAL_SQL = text(
+    """
+    SELECT id, title, description, category, brand, price, created_at,
+           popularity_score,
+           1 - (embedding <=> CAST(:pvec AS vector)) AS personal_raw
       FROM item
      WHERE id = ANY(:ids)
     """
@@ -269,22 +294,36 @@ _FETCH_ROWS_SQL = text(
 
 
 async def fetch_candidate_rows(
-    session: AsyncSession, raw: list[RawCandidate]
+    session: AsyncSession,
+    raw: list[RawCandidate],
+    profile_vec: list[float] | None = None,
 ) -> list[RankingCandidate]:
     """Bulk SELECT all candidate rows in a single round trip.
 
     Result order matches `raw` order so feature vectors can be assembled
     by index without a separate join-by-id step.
+
+    When `profile_vec` is provided, the per-candidate cosine similarity
+    against it is computed in SQL and returned as `personal_raw`,
+    avoiding the need to ship the full embedding column over the wire.
     """
     if not raw:
         return []
     ids = [c.item_id for c in raw]
-    res = await session.execute(_FETCH_ROWS_SQL, {"ids": ids})
+    if profile_vec is not None:
+        params = {"ids": ids, "pvec": _format_vector(profile_vec)}
+        res = await session.execute(_FETCH_ROWS_WITH_PERSONAL_SQL, params)
+    else:
+        res = await session.execute(_FETCH_ROWS_SQL, {"ids": ids})
     rows = res.mappings().all()
 
     by_id: dict[str, RankingCandidate] = {}
     for row in rows:
-        embedding = _coerce_embedding(row["embedding"])
+        personal_raw = (
+            float(row["personal_raw"])
+            if profile_vec is not None and row.get("personal_raw") is not None
+            else None
+        )
         by_id[row["id"]] = RankingCandidate(
             item_id=row["id"],
             title=row["title"],
@@ -294,9 +333,10 @@ async def fetch_candidate_rows(
             price=float(row["price"]),
             created_at=_ensure_datetime(row["created_at"]),
             popularity_score=float(row["popularity_score"] or 0.0),
-            embedding=embedding,
+            embedding=None,
             bm25_raw=None,
             vector_raw=None,
+            personal_raw=personal_raw,
         )
 
     out: list[RankingCandidate] = []

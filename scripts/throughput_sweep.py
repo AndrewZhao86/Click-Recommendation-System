@@ -25,11 +25,11 @@ from pathlib import Path
 
 ARTIFACTS = Path(os.environ.get("ARTIFACTS_DIR", "artifacts"))
 OUT = ARTIFACTS / "throughput_vs_consumers.csv"
-SWEEP_NS: list[int] = [1, 3, 6]
-WARMUP_S = 8.0  # let workers join the group + warm caches
-LOCUST_USERS = 200
-LOCUST_SPAWN = 40
-LOCUST_RUN = "5m"
+SWEEP_NS: list[int] = [int(x) for x in os.environ.get("SWEEP_NS", "1,3,6").split(",")]
+WARMUP_S = float(os.environ.get("WARMUP_S", "8"))  # let workers join the group + warm caches
+LOCUST_USERS = int(os.environ.get("LOCUST_USERS", "200"))
+LOCUST_SPAWN = int(os.environ.get("LOCUST_SPAWN", "40"))
+LOCUST_RUN = os.environ.get("LOCUST_RUN", "5m")
 
 
 def _max_rps_from_stats(stats_csv: Path) -> float:

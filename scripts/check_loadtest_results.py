@@ -275,8 +275,8 @@ def check_prometheus_metrics(base_url: str) -> list[str]:
 
     # ── cache hit ratio ──────────────────────────────────────────────────────
     hit_total = _prometheus_counters(text, "cache_hit_total")
-    miss_total = _prometheus_counters(text, "cache_miss_total")
-    if hit_total is not None and miss_total is not None:
+    miss_total = _prometheus_counters(text, "cache_miss_total") or 0.0
+    if hit_total is not None:
         total = hit_total + miss_total
         if total > 0:
             ratio = hit_total / total

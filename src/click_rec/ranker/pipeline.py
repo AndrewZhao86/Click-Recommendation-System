@@ -136,7 +136,9 @@ async def rank(
             )
             return []
         ranker_candidates_total.observe(len(raw_cands))
-        cands = await fetch_candidate_rows(session, raw_cands)
+        cands = await fetch_candidate_rows(
+            session, raw_cands, profile_vec=user_ctx.profile_vec
+        )
         ranker_latency_seconds.labels(stage="candidates").observe(
             time.monotonic() - cand_start
         )
@@ -149,13 +151,40 @@ async def rank(
         )
 
         cand_start = time.monotonic()
-        raw_cands = await generate_candidates(
-            query=query,
-            qvec=qvec,
-            session=session,
-            cfg=cfg,
-            redis_client=redis_client,
-        )
+
+        # Run candidate generation and user-context load concurrently so
+        # `profile_vec` is available by the time we fetch candidate rows.
+        # Pushing the personal-score cosine into the fetch SQL lets us
+        # drop the 384-float `embedding` column from the wire payload
+        # (~150 KB / request → a single float per row).
+        if user_ctx is None:
+            from click_rec.db.base import get_sessionmaker
+
+            async with get_sessionmaker()() as session_ctx:
+                raw_cands, user_ctx = await asyncio.gather(
+                    generate_candidates(
+                        query=query,
+                        qvec=qvec,
+                        session=session,
+                        cfg=cfg,
+                        redis_client=redis_client,
+                    ),
+                    load_user_context(
+                        user_id=user_id,
+                        session=session_ctx,
+                        redis_client=redis_client,
+                        cfg=cfg,
+                    ),
+                )
+        else:
+            raw_cands = await generate_candidates(
+                query=query,
+                qvec=qvec,
+                session=session,
+                cfg=cfg,
+                redis_client=redis_client,
+            )
+
         if not raw_cands:
             ranker_empty_result_total.inc()
             ranker_candidates_total.observe(0)
@@ -165,15 +194,9 @@ async def rank(
             return []
         ranker_candidates_total.observe(len(raw_cands))
 
-        if user_ctx is None:
-            # Parallelise the row fetch with the user-context load.
-            cands_task = fetch_candidate_rows(session, raw_cands)
-            ctx_task = load_user_context(
-                user_id=user_id, session=session, redis_client=redis_client, cfg=cfg
-            )
-            cands, user_ctx = await asyncio.gather(cands_task, ctx_task)
-        else:
-            cands = await fetch_candidate_rows(session, raw_cands)
+        cands = await fetch_candidate_rows(
+            session, raw_cands, profile_vec=user_ctx.profile_vec
+        )
         ranker_latency_seconds.labels(stage="candidates").observe(
             time.monotonic() - cand_start
         )

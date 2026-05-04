@@ -37,6 +37,11 @@ class RankingCandidate:
     embedding: list[float] | None
     bm25_raw: float | None
     vector_raw: float | None
+    # Cosine similarity between user profile_vec and this candidate's
+    # embedding, computed in SQL via pgvector at fetch time when
+    # profile_vec is known. None when profile_vec was unavailable
+    # (cold-start) or when the legacy in-Python path is used.
+    personal_raw: float | None = None
 
 
 class RankedItemDTO(BaseModel):
