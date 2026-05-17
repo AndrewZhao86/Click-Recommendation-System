@@ -32,6 +32,8 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # ---------- Stage 2: runtime ----------
 FROM python:3.11-slim-bookworm AS runtime
 
+RUN apt-get update && apt-get upgrade -y && rm -rf /var/lib/apt/lists/*
+
 ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \

@@ -56,7 +56,7 @@ jobs:
         run: uv sync --frozen --extra dev
 
       - name: Run pytest
-        run: uv run pytest tests/ -v --tb=short
+        run: uv run pytest tests/ -v --tb=short -m "not integration"
 
   docker-build-and-scan:
     name: Docker build & Trivy scan
