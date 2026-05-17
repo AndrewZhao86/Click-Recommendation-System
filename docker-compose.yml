@@ -74,6 +74,29 @@ services:
       - postgres-data:/var/lib/postgresql/data
       - ./scripts/postgres-init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
 
+  # Phase 9 — opt-in containerised app. Gated under the `app` profile so
+  # the existing `make up` workflow (infra-only + `make api` on host) stays
+  # unchanged. Run with `make docker-up` / `docker compose --profile app up`.
+  app:
+    build: .
+    image: click-rec:local
+    container_name: click-rec-app
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: "postgresql+asyncpg://clickrec:clickrec@postgres:5432/clickrec"
+      REDIS_URL: "redis://redis:6379/0"
+      KAFKA_BOOTSTRAP: "kafka:9092"
+      GEMINI_API_KEY: "${GEMINI_API_KEY:?GEMINI_API_KEY must be set in .env or environment}"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    profiles: ["app"]
+
   # Phase 8b — opt-in Jaeger for trace visualisation. Gated under the
   # `observability` profile so `make up` stays minimal; `make up-obs`
   # starts everything including this. Jaeger 1.62 accepts OTLP gRPC

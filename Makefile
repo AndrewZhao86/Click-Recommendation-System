@@ -1,4 +1,4 @@
-.PHONY: up up-obs down down-v logs ps migrate seed api consumer replay replay-dlq loadtest loadtest-preflight loadtest-llm loadtest-sweep check-loadtest eval-llm eval-offline test fmt lint typecheck install
+.PHONY: up up-obs down down-v logs ps migrate seed api consumer replay replay-dlq loadtest loadtest-preflight loadtest-llm loadtest-sweep check-loadtest eval-llm eval-offline test fmt lint typecheck install docker-build docker-up docker-down docker-logs
 
 N ?= 1
 EVENTS ?= 10000
@@ -104,3 +104,22 @@ lint:
 
 typecheck:
 	uv run mypy src
+
+# ---- Phase 9: containerised app ----
+
+docker-build:
+	docker build -t click-rec:local .
+
+docker-up:
+	docker compose --profile app up -d
+	@docker compose --profile app ps
+
+docker-down:
+	docker compose --profile app down
+
+docker-logs:
+	docker compose --profile app logs -f app
+
+# Trivy CVE scanning runs in CI (see .github/workflows/ci.yml). Not exposed
+# as a local target — Linux CI runners scan the 3 GB image in ~2 min, whereas
+# Windows hits PowerShell pipe + memory issues on the same workload.
