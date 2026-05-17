@@ -10,9 +10,7 @@ class Settings(BaseSettings):
 
     kafka_bootstrap: str = "localhost:9094"
     redis_url: str = "redis://localhost:6379/0"
-    database_url: str = (
-        "postgresql+asyncpg://clickrec:clickrec@localhost:5432/clickrec"
-    )
+    database_url: str = "postgresql+asyncpg://clickrec:clickrec@localhost:5432/clickrec"
 
     # Phase 7 — Gemini-only LLM layer.
     # `gemini_runtime_model` powers query-understanding, re-rank, /explain;

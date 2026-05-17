@@ -113,9 +113,7 @@ async def test_recommendations_validates_user_id_required(client: AsyncClient) -
 async def test_recommendations_returns_top_10_for_warm_user(
     client: AsyncClient, stub_rank: dict[str, Any]
 ) -> None:
-    resp = await client.get(
-        "/recommendations", params={"user_id": "u_warm", "limit": 10}
-    )
+    resp = await client.get("/recommendations", params={"user_id": "u_warm", "limit": 10})
     assert resp.status_code == 200
     body = resp.json()
     assert isinstance(body, list)
@@ -174,16 +172,11 @@ async def test_recommendations_with_use_llm_true_attaches_rationales(
 
     async def fake_rr(**kw: Any) -> list[RankedItemDTO]:
         captured.update(kw)
-        out = [
-            c.model_copy(update={"llm_rationale": f"rec:{c.item.id}"})
-            for c in kw["candidates"]
-        ]
+        out = [c.model_copy(update={"llm_rationale": f"rec:{c.item.id}"}) for c in kw["candidates"]]
         return out
 
     monkeypatch.setattr(rec_module, "rerank_top_k", fake_rr)
-    resp = await client.get(
-        "/recommendations", params={"user_id": "u1", "use_llm": "true"}
-    )
+    resp = await client.get("/recommendations", params={"user_id": "u1", "use_llm": "true"})
     assert resp.status_code == 200
     body = resp.json()
     assert body[0]["llm_rationale"] == "rec:i1"
@@ -204,9 +197,7 @@ async def test_recommendations_llm_failure_falls_back_to_hybrid(
         return None
 
     monkeypatch.setattr(rec_module, "rerank_top_k", fake_rr)
-    resp = await client.get(
-        "/recommendations", params={"user_id": "u1", "use_llm": "true"}
-    )
+    resp = await client.get("/recommendations", params={"user_id": "u1", "use_llm": "true"})
     assert resp.status_code == 200
     body = resp.json()
     # Original order preserved.
@@ -226,8 +217,6 @@ async def test_recommendations_use_llm_false_skips_rerank(
         return None
 
     monkeypatch.setattr(rec_module, "rerank_top_k", fake_rr)
-    resp = await client.get(
-        "/recommendations", params={"user_id": "u1", "use_llm": "false"}
-    )
+    resp = await client.get("/recommendations", params={"user_id": "u1", "use_llm": "false"})
     assert resp.status_code == 200
     assert rr_calls == []

@@ -32,9 +32,7 @@ _EXPECTED_KEYS = {
 }
 
 
-async def test_eval_llm_metric_keys_present(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Any
-) -> None:
+async def test_eval_llm_metric_keys_present(monkeypatch: pytest.MonkeyPatch, tmp_path: Any) -> None:
     """No replay log → all keys still present, all zero."""
 
     async def fake_replay_pass(**_kwargs: Any) -> dict[str, float]:

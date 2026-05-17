@@ -20,7 +20,7 @@ from __future__ import annotations
 import os
 import random
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from locust import HttpUser, between, task
@@ -106,7 +106,7 @@ class SearchPulseUser(HttpUser):
         uid = random.choice(self.user_ids)
         payload = {
             "event_type": "click",
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "user_id": uid,
             "session_id": f"s_{uid}_{uuid.uuid4().hex[:8]}",
             "item_id": f"i_load_{random.randint(0, 9999)}",
@@ -121,13 +121,11 @@ class SearchPulseUser(HttpUser):
         uid = random.choice(self.user_ids)
         payload = {
             "event_type": "impression",
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "user_id": uid,
             "session_id": f"s_{uid}_{uuid.uuid4().hex[:8]}",
             "query": _zipf_choice(self.queries),
             "result_ids": [f"i_load_{random.randint(0, 9999)}" for _ in range(10)],
             "page": 1,
         }
-        self.client.post(
-            "/events/impression", json=payload, name="/events/impression"
-        )
+        self.client.post("/events/impression", json=payload, name="/events/impression")

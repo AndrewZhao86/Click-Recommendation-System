@@ -96,9 +96,7 @@ async def load_user_context(
 
     n = cfg.personal_recent_clicks_n
     try:
-        raw = await redis_client.zrevrange(
-            f"user:{user_id}:recent_clicks", 0, n - 1
-        )
+        raw = await redis_client.zrevrange(f"user:{user_id}:recent_clicks", 0, n - 1)
     except _REDIS_ERRORS as exc:
         logger.warning(
             "cache_unavailable: user recent_clicks read failed",
@@ -211,9 +209,7 @@ def recency_scores(cands: list[RankingCandidate], cfg: RankerConfig) -> list[flo
     return out
 
 
-def personal_scores(
-    cands: list[RankingCandidate], profile_vec: list[float] | None
-) -> list[float]:
+def personal_scores(cands: list[RankingCandidate], profile_vec: list[float] | None) -> list[float]:
     """Cosine similarity between user profile vector and each candidate.
 
     `profile_vec is None` (cold-start) → all 0.0. Per-candidate missing
@@ -287,9 +283,7 @@ async def co_click_scores(
         return [0.0] * len(cands)
 
     cand_ids = [c.item_id for c in cands]
-    res = await session.execute(
-        _CO_CLICK_SQL, {"recent": recent_item_ids, "cands": cand_ids}
-    )
+    res = await session.execute(_CO_CLICK_SQL, {"recent": recent_item_ids, "cands": cand_ids})
     rows = res.mappings().all()
 
     recent_set = set(recent_item_ids)
@@ -320,9 +314,7 @@ def price_fit_scores(
     if user_avg_price is None or not cands:
         return [0.0] * len(cands)
     scale = cfg.price_fit_scale or 1.0
-    return [
-        math.exp(-abs(c.price - user_avg_price) / scale) for c in cands
-    ]
+    return [math.exp(-abs(c.price - user_avg_price) / scale) for c in cands]
 
 
 # ============================================================ orchestration helper

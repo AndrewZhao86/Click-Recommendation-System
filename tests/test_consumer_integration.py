@@ -106,6 +106,28 @@ def _clear_item_cache() -> Iterator[None]:
 
 
 @pytest.fixture
+def unique_consumer_group(
+    configured_settings: None, request: pytest.FixtureRequest
+) -> Iterator[str]:
+    """Per-test consumer group so a ghost consumer left over from the
+    previous test (its `task.cancel()` interrupts `consumer.stop()` before
+    it can cleanly LeaveGroup) doesn't hold the partition through the
+    broker's session timeout.
+    """
+    from uuid import uuid4
+
+    from click_rec.config import get_settings
+
+    group = f"click-enricher-test-{uuid4().hex[:8]}"
+    mp = pytest.MonkeyPatch()
+    mp.setenv("CONSUMER_GROUP", group)
+    get_settings.cache_clear()
+    yield group
+    mp.undo()
+    get_settings.cache_clear()
+
+
+@pytest.fixture
 async def db_schema(configured_settings: None) -> AsyncIterator[None]:
     """Create the minimal Phase 4 tables (item, user_account, co_click)."""
     from sqlalchemy import text
@@ -173,6 +195,7 @@ async def consumer_pool(
     kafka_container: Any,
     seeded_items: list[str],
     started_redis: None,
+    unique_consumer_group: str,
 ) -> AsyncIterator[asyncio.Task[Any]]:
     from click_rec.kafka.consumer import run_consumer_pool
 
@@ -182,6 +205,7 @@ async def consumer_pool(
     yield task
     task.cancel()
     import contextlib as _ctx
+
     with _ctx.suppress(asyncio.CancelledError, Exception):
         await task
 
@@ -222,9 +246,7 @@ async def _publish(bootstrap: str, topic: str, key: str | None, value: bytes) ->
         await p.stop()
 
 
-async def _drain(
-    bootstrap: str, topic: str, timeout_s: float = 8.0
-) -> list[dict[str, Any]]:
+async def _drain(bootstrap: str, topic: str, timeout_s: float = 8.0) -> list[dict[str, Any]]:
     c = AIOKafkaConsumer(
         topic,
         bootstrap_servers=bootstrap,
@@ -249,9 +271,7 @@ async def _drain(
     return out
 
 
-async def _wait_for(
-    fn: Any, *, timeout_s: float = 8.0, interval_s: float = 0.25
-) -> bool:
+async def _wait_for(fn: Any, *, timeout_s: float = 8.0, interval_s: float = 0.25) -> bool:
     deadline = asyncio.get_event_loop().time() + timeout_s
     while asyncio.get_event_loop().time() < deadline:
         if await fn():
@@ -282,9 +302,7 @@ async def test_happy_path_writes_redis_postgres_and_profile_topic(
         async with sm() as s:
             row = (
                 await s.execute(
-                    select(CoClick).where(
-                        CoClick.item_a == "i_int_1", CoClick.item_b == "i_int_2"
-                    )
+                    select(CoClick).where(CoClick.item_a == "i_int_1", CoClick.item_b == "i_int_2")
                 )
             ).first()
             return row is not None
@@ -357,10 +375,9 @@ async def test_poison_pill_goes_to_dlq_and_consumer_keeps_running(
     from click_rec.cache.redis_client import get_redis
 
     r = get_redis()
+
     async def recovered() -> bool:
-        members = await r.zrange(
-            "user:u_poison_recover:recent_clicks", 0, -1
-        )
+        members = await r.zrange("user:u_poison_recover:recent_clicks", 0, -1)
         return len(members) >= 1
 
     assert await _wait_for(recovered, timeout_s=10.0)
@@ -370,7 +387,9 @@ async def test_poison_pill_goes_to_dlq_and_consumer_keeps_running(
 
 
 async def test_replay_dlq_skips_malformed_payloads_and_replays_valid_ones(
-    kafka_container: Any, consumer_pool: asyncio.Task[Any], tmp_path: Path,
+    kafka_container: Any,
+    consumer_pool: asyncio.Task[Any],
+    tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Phase 4 review D4: poison pills must not crash replay_dlq."""
@@ -435,7 +454,9 @@ async def test_replay_dlq_skips_malformed_payloads_and_replays_valid_ones(
 
 
 async def test_sixth_click_is_included_in_co_click_pairs(
-    kafka_container: Any, consumer_pool: asyncio.Task[Any], seeded_items: list[str],
+    kafka_container: Any,
+    consumer_pool: asyncio.Task[Any],
+    seeded_items: list[str],
 ) -> None:
     """Phase 4 review C1: with `session_window` priors, the current click
     must NOT be sliced off — co_click must contain the new pair.
@@ -479,9 +500,7 @@ async def test_sixth_click_is_included_in_co_click_pairs(
             # Last extra item paired with the new click — must exist.
             a, b = sorted(["i_extra_4", "i_int_2"])
             row = (
-                await s.execute(
-                    select(CoClick).where(CoClick.item_a == a, CoClick.item_b == b)
-                )
+                await s.execute(select(CoClick).where(CoClick.item_a == a, CoClick.item_b == b))
             ).first()
             return row is not None
 

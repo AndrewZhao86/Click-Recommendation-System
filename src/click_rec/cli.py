@@ -65,9 +65,7 @@ def main() -> int:
         default=None,
         help="Output artifact path (default: artifacts/eval_llm_<ts>.json)",
     )
-    eval_offline = sub.add_parser(
-        "eval-offline", help="Run NDCG@10 / MRR@10 offline eval"
-    )
+    eval_offline = sub.add_parser("eval-offline", help="Run NDCG@10 / MRR@10 offline eval")
     eval_offline.add_argument("--num-users", type=int, default=200)
     eval_offline.add_argument("--k", type=int, default=10)
     eval_offline.add_argument(
@@ -102,9 +100,7 @@ def main() -> int:
     elif args.cmd == "replay":
         from scripts import replay_clicks
 
-        return asyncio.run(
-            replay_clicks.run(args.events, capture_eval_log=args.capture_eval_log)
-        )
+        return asyncio.run(replay_clicks.run(args.events, capture_eval_log=args.capture_eval_log))
     elif args.cmd == "replay-dlq":
         from scripts import replay_dlq
 

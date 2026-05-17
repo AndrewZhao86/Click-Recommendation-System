@@ -85,9 +85,7 @@ async def _create_topic(bootstrap: str) -> None:
 
 
 async def _publish_messages(bootstrap: str, n: int) -> None:
-    producer = AIOKafkaProducer(
-        bootstrap_servers=bootstrap, value_serializer=orjson.dumps
-    )
+    producer = AIOKafkaProducer(bootstrap_servers=bootstrap, value_serializer=orjson.dumps)
     await producer.start()
     try:
         for i in range(n):
@@ -124,9 +122,7 @@ async def _build_subscribed_consumer(
         deadline = asyncio.get_running_loop().time() + 10.0
         while not consumer.assignment():
             if asyncio.get_running_loop().time() > deadline:
-                raise AssertionError(
-                    "consumer never received partition assignment"
-                )
+                raise AssertionError("consumer never received partition assignment")
             await asyncio.sleep(0.1)
         yield consumer
     finally:
@@ -141,10 +137,7 @@ def _sum_lag_for_group(group: str) -> float:
     total = 0.0
     for metric in kafka_consumer_lag.collect():
         for sample in metric.samples:
-            if (
-                sample.name == "kafka_consumer_lag"
-                and sample.labels.get("group") == group
-            ):
+            if sample.name == "kafka_consumer_lag" and sample.labels.get("group") == group:
                 total += sample.value
     return total
 
@@ -187,8 +180,7 @@ async def test_lag_poller_emits_gauge_after_replay(
             # All messages are unread — total lag across partitions
             # should equal the publish count.
             assert total == _NUM_MESSAGES, (
-                f"lag should match publish count; got {total}, "
-                f"expected {_NUM_MESSAGES}"
+                f"lag should match publish count; got {total}, expected {_NUM_MESSAGES}"
             )
         finally:
             stop.set()

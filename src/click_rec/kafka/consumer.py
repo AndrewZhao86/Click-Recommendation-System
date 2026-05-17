@@ -58,9 +58,7 @@ logger = logging.getLogger(__name__)
 _LAG_POLL_INTERVAL_S = 5.0
 
 
-async def _lag_poller(
-    consumer: AIOKafkaConsumer, group: str, stop_event: asyncio.Event
-) -> None:
+async def _lag_poller(consumer: AIOKafkaConsumer, group: str, stop_event: asyncio.Event) -> None:
     """Periodically emit `kafka_consumer_lag` per assigned (topic, partition).
 
     Reads `consumer.committed()` vs `consumer.end_offsets()` every
@@ -275,9 +273,7 @@ async def _process_one(
         },
         exc_info=last_exc,
     )
-    sent = await _send_to_dlq(
-        producer, record, last_exc, reason="retries_exhausted"
-    )
+    sent = await _send_to_dlq(producer, record, last_exc, reason="retries_exhausted")
     return ProcessOutcome.DLQ_OK if sent else ProcessOutcome.DLQ_FAILED
 
 

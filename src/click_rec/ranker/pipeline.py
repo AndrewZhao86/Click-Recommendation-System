@@ -128,27 +128,17 @@ async def rank(
         if not raw_cands:
             ranker_empty_result_total.inc()
             ranker_candidates_total.observe(0)
-            ranker_latency_seconds.labels(stage="candidates").observe(
-                time.monotonic() - cand_start
-            )
-            ranker_latency_seconds.labels(stage="total").observe(
-                time.monotonic() - total_start
-            )
+            ranker_latency_seconds.labels(stage="candidates").observe(time.monotonic() - cand_start)
+            ranker_latency_seconds.labels(stage="total").observe(time.monotonic() - total_start)
             return []
         ranker_candidates_total.observe(len(raw_cands))
-        cands = await fetch_candidate_rows(
-            session, raw_cands, profile_vec=user_ctx.profile_vec
-        )
-        ranker_latency_seconds.labels(stage="candidates").observe(
-            time.monotonic() - cand_start
-        )
+        cands = await fetch_candidate_rows(session, raw_cands, profile_vec=user_ctx.profile_vec)
+        ranker_latency_seconds.labels(stage="candidates").observe(time.monotonic() - cand_start)
     else:
         # Query path: encode → BM25 + vector → gather context.
         enc_start = time.monotonic()
         qvec = await encode_query(query)
-        ranker_latency_seconds.labels(stage="embed").observe(
-            time.monotonic() - enc_start
-        )
+        ranker_latency_seconds.labels(stage="embed").observe(time.monotonic() - enc_start)
 
         cand_start = time.monotonic()
 
@@ -188,24 +178,17 @@ async def rank(
         if not raw_cands:
             ranker_empty_result_total.inc()
             ranker_candidates_total.observe(0)
-            ranker_latency_seconds.labels(stage="total").observe(
-                time.monotonic() - total_start
-            )
+            ranker_latency_seconds.labels(stage="total").observe(time.monotonic() - total_start)
             return []
         ranker_candidates_total.observe(len(raw_cands))
 
-        cands = await fetch_candidate_rows(
-            session, raw_cands, profile_vec=user_ctx.profile_vec
-        )
-        ranker_latency_seconds.labels(stage="candidates").observe(
-            time.monotonic() - cand_start
-        )
+        assert user_ctx is not None  # populated in both branches of the if/else above
+        cands = await fetch_candidate_rows(session, raw_cands, profile_vec=user_ctx.profile_vec)
+        ranker_latency_seconds.labels(stage="candidates").observe(time.monotonic() - cand_start)
 
     if not cands:
         ranker_empty_result_total.inc()
-        ranker_latency_seconds.labels(stage="total").observe(
-            time.monotonic() - total_start
-        )
+        ranker_latency_seconds.labels(stage="total").observe(time.monotonic() - total_start)
         return []
 
     if not user_ctx.recent_item_ids:
@@ -220,22 +203,16 @@ async def rank(
         session=session,
         cfg=cfg,
     )
-    ranker_latency_seconds.labels(stage="features").observe(
-        time.monotonic() - feat_start
-    )
+    ranker_latency_seconds.labels(stage="features").observe(time.monotonic() - feat_start)
 
     # 5. Score + sort + top `limit`.
     # PHASE_8B_LGBM_SEAM — swap `score_features` for the trained
     # LambdaRank model here. The linear path stays as fallback.
     score_start = time.monotonic()
     scores, breakdowns = score_features(features, cfg)
-    ranker_latency_seconds.labels(stage="score").observe(
-        time.monotonic() - score_start
-    )
+    ranker_latency_seconds.labels(stage="score").observe(time.monotonic() - score_start)
 
-    indexed = sorted(
-        range(len(cands)), key=lambda i: scores[i], reverse=True
-    )[:limit]
+    indexed = sorted(range(len(cands)), key=lambda i: scores[i], reverse=True)[:limit]
 
     out = [
         RankedItemDTO(
@@ -246,7 +223,5 @@ async def rank(
         for i in indexed
     ]
 
-    ranker_latency_seconds.labels(stage="total").observe(
-        time.monotonic() - total_start
-    )
+    ranker_latency_seconds.labels(stage="total").observe(time.monotonic() - total_start)
     return out

@@ -26,15 +26,14 @@ async def client() -> AsyncClient:
 @pytest.fixture(autouse=True)
 def _stub_redis(monkeypatch: pytest.MonkeyPatch) -> None:
     """Force `get_redis()` to RuntimeError so the route's `client=None` path runs."""
+
     def _raise() -> Any:
         raise RuntimeError("redis not started")
 
     monkeypatch.setattr(explain_module, "get_redis", _raise)
 
 
-def _patch_explain(
-    monkeypatch: pytest.MonkeyPatch, return_value: str | None
-) -> dict[str, int]:
+def _patch_explain(monkeypatch: pytest.MonkeyPatch, return_value: str | None) -> dict[str, int]:
     counters = {"calls": 0}
 
     async def fake_explain(**_kwargs: Any) -> str | None:
@@ -49,9 +48,7 @@ async def test_explain_returns_200_with_rationale(
     client: AsyncClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _patch_explain(monkeypatch, "Because you've been browsing Acme headphones.")
-    resp = await client.get(
-        "/explain", params={"user_id": "u_42", "item_id": "i_1045"}
-    )
+    resp = await client.get("/explain", params={"user_id": "u_42", "item_id": "i_1045"})
     assert resp.status_code == 200
     body = resp.json()
     assert body["rationale"].startswith("Because you've been")
@@ -61,9 +58,7 @@ async def test_explain_503_when_llm_unavailable(
     client: AsyncClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _patch_explain(monkeypatch, None)
-    resp = await client.get(
-        "/explain", params={"user_id": "u_42", "item_id": "i_1045"}
-    )
+    resp = await client.get("/explain", params={"user_id": "u_42", "item_id": "i_1045"})
     assert resp.status_code == 503
 
 
@@ -75,9 +70,7 @@ async def test_explain_validates_query_lengths(client: AsyncClient) -> None:
     resp = await client.get("/explain", params={"user_id": "", "item_id": "x"})
     assert resp.status_code == 422
     # Overlong → 422 (max_length=64)
-    resp = await client.get(
-        "/explain", params={"user_id": "u" * 65, "item_id": "x"}
-    )
+    resp = await client.get("/explain", params={"user_id": "u" * 65, "item_id": "x"})
     assert resp.status_code == 422
 
 
@@ -90,7 +83,5 @@ async def test_explain_503_when_explainer_raises(
         raise RuntimeError("kaboom")
 
     monkeypatch.setattr(explain_module, "explain_recommendation", boom)
-    resp = await client.get(
-        "/explain", params={"user_id": "u_42", "item_id": "i_1045"}
-    )
+    resp = await client.get("/explain", params={"user_id": "u_42", "item_id": "i_1045"})
     assert resp.status_code == 503

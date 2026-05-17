@@ -3,6 +3,7 @@
 Idempotent: early-returns when `item` already has >= TARGET_ITEMS rows. For a
 clean re-seed: `make down-v && make up && make migrate && make seed`.
 """
+
 from __future__ import annotations
 
 import logging
@@ -33,66 +34,292 @@ RANDOM_SEED = 42
 COUNTRIES = ("US", "GB", "DE", "FR", "JP", "CA", "AU", "BR", "IN", "SE")
 
 ADJECTIVES = (
-    "Premium", "Compact", "Wireless", "Portable", "Professional",
-    "Classic", "Modern", "Sleek", "Rugged", "Ergonomic",
-    "Lightweight", "Durable", "Elite", "Advanced", "Smart",
-    "Deluxe", "Eco", "Vintage", "Essential", "Ultimate",
+    "Premium",
+    "Compact",
+    "Wireless",
+    "Portable",
+    "Professional",
+    "Classic",
+    "Modern",
+    "Sleek",
+    "Rugged",
+    "Ergonomic",
+    "Lightweight",
+    "Durable",
+    "Elite",
+    "Advanced",
+    "Smart",
+    "Deluxe",
+    "Eco",
+    "Vintage",
+    "Essential",
+    "Ultimate",
 )
 
 # (category_path, product_noun, brands, (price_low, price_high))
 CategoryRow = tuple[str, str, tuple[str, ...], tuple[float, float]]
 
 CATEGORIES: tuple[CategoryRow, ...] = (
-    ("electronics/headphones", "Headphones", ("Sony", "Bose", "Sennheiser", "JBL", "Anker"), (20.0, 400.0)),
-    ("electronics/earbuds", "Earbuds", ("Apple", "Samsung", "Jabra", "Beats", "Soundcore"), (15.0, 300.0)),
+    (
+        "electronics/headphones",
+        "Headphones",
+        ("Sony", "Bose", "Sennheiser", "JBL", "Anker"),
+        (20.0, 400.0),
+    ),
+    (
+        "electronics/earbuds",
+        "Earbuds",
+        ("Apple", "Samsung", "Jabra", "Beats", "Soundcore"),
+        (15.0, 300.0),
+    ),
     ("electronics/speakers", "Speaker", ("JBL", "Bose", "Sonos", "Marshall", "UE"), (25.0, 800.0)),
     ("electronics/laptops", "Laptop", ("Apple", "Dell", "HP", "Lenovo", "ASUS"), (400.0, 3000.0)),
-    ("electronics/keyboards", "Keyboard", ("Logitech", "Keychron", "Razer", "Corsair", "HyperX"), (30.0, 300.0)),
-    ("electronics/mice", "Mouse", ("Logitech", "Razer", "Apple", "SteelSeries", "Glorious"), (15.0, 180.0)),
+    (
+        "electronics/keyboards",
+        "Keyboard",
+        ("Logitech", "Keychron", "Razer", "Corsair", "HyperX"),
+        (30.0, 300.0),
+    ),
+    (
+        "electronics/mice",
+        "Mouse",
+        ("Logitech", "Razer", "Apple", "SteelSeries", "Glorious"),
+        (15.0, 180.0),
+    ),
     ("electronics/monitors", "Monitor", ("LG", "Dell", "Samsung", "ASUS", "BenQ"), (120.0, 1500.0)),
-    ("electronics/smartphones", "Phone", ("Apple", "Samsung", "Google", "OnePlus", "Motorola"), (200.0, 1600.0)),
-    ("electronics/tablets", "Tablet", ("Apple", "Samsung", "Lenovo", "Microsoft", "Amazon"), (100.0, 1200.0)),
-    ("electronics/smartwatches", "Smartwatch", ("Apple", "Garmin", "Fitbit", "Samsung", "Amazfit"), (50.0, 900.0)),
-    ("home/coffee-makers", "Coffee Maker", ("Breville", "DeLonghi", "Keurig", "Ninja", "Nespresso"), (40.0, 800.0)),
-    ("home/blenders", "Blender", ("Vitamix", "Ninja", "Blendtec", "KitchenAid", "Oster"), (25.0, 700.0)),
-    ("home/toasters", "Toaster", ("Breville", "Cuisinart", "KitchenAid", "Hamilton Beach", "Dash"), (20.0, 300.0)),
-    ("home/air-fryers", "Air Fryer", ("Ninja", "Instant", "Cosori", "Philips", "Chefman"), (50.0, 400.0)),
-    ("home/stand-mixers", "Stand Mixer", ("KitchenAid", "Cuisinart", "Breville", "Bosch", "Hamilton Beach"), (150.0, 900.0)),
-    ("home/kettles", "Kettle", ("Breville", "Cuisinart", "Hamilton Beach", "OXO", "Fellow"), (20.0, 250.0)),
-    ("home/cookware", "Cookware Set", ("All-Clad", "Le Creuset", "Lodge", "Calphalon", "T-fal"), (50.0, 1200.0)),
-    ("home/cutlery", "Knife Set", ("Wusthof", "Shun", "Victorinox", "Zwilling", "Global"), (30.0, 800.0)),
-    ("home/dinnerware", "Dinnerware Set", ("Corelle", "Mikasa", "Lenox", "Gibson", "Fiesta"), (25.0, 500.0)),
-    ("home/food-storage", "Food Storage Set", ("OXO", "Rubbermaid", "Pyrex", "Snapware", "Glasslock"), (15.0, 200.0)),
+    (
+        "electronics/smartphones",
+        "Phone",
+        ("Apple", "Samsung", "Google", "OnePlus", "Motorola"),
+        (200.0, 1600.0),
+    ),
+    (
+        "electronics/tablets",
+        "Tablet",
+        ("Apple", "Samsung", "Lenovo", "Microsoft", "Amazon"),
+        (100.0, 1200.0),
+    ),
+    (
+        "electronics/smartwatches",
+        "Smartwatch",
+        ("Apple", "Garmin", "Fitbit", "Samsung", "Amazfit"),
+        (50.0, 900.0),
+    ),
+    (
+        "home/coffee-makers",
+        "Coffee Maker",
+        ("Breville", "DeLonghi", "Keurig", "Ninja", "Nespresso"),
+        (40.0, 800.0),
+    ),
+    (
+        "home/blenders",
+        "Blender",
+        ("Vitamix", "Ninja", "Blendtec", "KitchenAid", "Oster"),
+        (25.0, 700.0),
+    ),
+    (
+        "home/toasters",
+        "Toaster",
+        ("Breville", "Cuisinart", "KitchenAid", "Hamilton Beach", "Dash"),
+        (20.0, 300.0),
+    ),
+    (
+        "home/air-fryers",
+        "Air Fryer",
+        ("Ninja", "Instant", "Cosori", "Philips", "Chefman"),
+        (50.0, 400.0),
+    ),
+    (
+        "home/stand-mixers",
+        "Stand Mixer",
+        ("KitchenAid", "Cuisinart", "Breville", "Bosch", "Hamilton Beach"),
+        (150.0, 900.0),
+    ),
+    (
+        "home/kettles",
+        "Kettle",
+        ("Breville", "Cuisinart", "Hamilton Beach", "OXO", "Fellow"),
+        (20.0, 250.0),
+    ),
+    (
+        "home/cookware",
+        "Cookware Set",
+        ("All-Clad", "Le Creuset", "Lodge", "Calphalon", "T-fal"),
+        (50.0, 1200.0),
+    ),
+    (
+        "home/cutlery",
+        "Knife Set",
+        ("Wusthof", "Shun", "Victorinox", "Zwilling", "Global"),
+        (30.0, 800.0),
+    ),
+    (
+        "home/dinnerware",
+        "Dinnerware Set",
+        ("Corelle", "Mikasa", "Lenox", "Gibson", "Fiesta"),
+        (25.0, 500.0),
+    ),
+    (
+        "home/food-storage",
+        "Food Storage Set",
+        ("OXO", "Rubbermaid", "Pyrex", "Snapware", "Glasslock"),
+        (15.0, 200.0),
+    ),
     ("home/lamps", "Lamp", ("Philips", "IKEA", "Govee", "Brightech", "Adesso"), (20.0, 350.0)),
     ("home/rugs", "Rug", ("Safavieh", "Ruggable", "Loloi", "Nuloom", "Jaipur"), (40.0, 900.0)),
-    ("home/throw-pillows", "Throw Pillow", ("Pottery Barn", "West Elm", "Target", "Hearth & Hand", "Amazon Basics"), (15.0, 150.0)),
-    ("home/wall-art", "Wall Art", ("Society6", "Minted", "Etsy", "UGallery", "IKEA"), (20.0, 500.0)),
-    ("home/curtains", "Curtain Set", ("IKEA", "Pottery Barn", "Deconovo", "Amazon Basics", "Nicetown"), (20.0, 300.0)),
-    ("furniture/office-chairs", "Office Chair", ("Herman Miller", "Steelcase", "Secretlab", "IKEA", "Branch"), (150.0, 2000.0)),
+    (
+        "home/throw-pillows",
+        "Throw Pillow",
+        ("Pottery Barn", "West Elm", "Target", "Hearth & Hand", "Amazon Basics"),
+        (15.0, 150.0),
+    ),
+    (
+        "home/wall-art",
+        "Wall Art",
+        ("Society6", "Minted", "Etsy", "UGallery", "IKEA"),
+        (20.0, 500.0),
+    ),
+    (
+        "home/curtains",
+        "Curtain Set",
+        ("IKEA", "Pottery Barn", "Deconovo", "Amazon Basics", "Nicetown"),
+        (20.0, 300.0),
+    ),
+    (
+        "furniture/office-chairs",
+        "Office Chair",
+        ("Herman Miller", "Steelcase", "Secretlab", "IKEA", "Branch"),
+        (150.0, 2000.0),
+    ),
     ("furniture/desks", "Desk", ("IKEA", "Uplift", "Fully", "Flexispot", "Vari"), (120.0, 1500.0)),
-    ("furniture/bookshelves", "Bookshelf", ("IKEA", "Sauder", "Prepac", "CB2", "West Elm"), (60.0, 900.0)),
-    ("furniture/nightstands", "Nightstand", ("IKEA", "CB2", "West Elm", "Sauder", "Walker Edison"), (40.0, 700.0)),
+    (
+        "furniture/bookshelves",
+        "Bookshelf",
+        ("IKEA", "Sauder", "Prepac", "CB2", "West Elm"),
+        (60.0, 900.0),
+    ),
+    (
+        "furniture/nightstands",
+        "Nightstand",
+        ("IKEA", "CB2", "West Elm", "Sauder", "Walker Edison"),
+        (40.0, 700.0),
+    ),
     ("furniture/sofas", "Sofa", ("IKEA", "Article", "West Elm", "CB2", "Ashley"), (300.0, 3500.0)),
-    ("apparel/mens-running-shoes", "Running Shoes", ("Nike", "Adidas", "Brooks", "Hoka", "Asics"), (60.0, 250.0)),
-    ("apparel/mens-sneakers", "Sneakers", ("Nike", "Adidas", "New Balance", "Puma", "Vans"), (50.0, 220.0)),
-    ("apparel/mens-t-shirts", "T-Shirt", ("Uniqlo", "Nike", "Adidas", "Everlane", "Patagonia"), (12.0, 80.0)),
-    ("apparel/mens-jackets", "Jacket", ("Patagonia", "North Face", "Arc'teryx", "Columbia", "Carhartt"), (60.0, 700.0)),
+    (
+        "apparel/mens-running-shoes",
+        "Running Shoes",
+        ("Nike", "Adidas", "Brooks", "Hoka", "Asics"),
+        (60.0, 250.0),
+    ),
+    (
+        "apparel/mens-sneakers",
+        "Sneakers",
+        ("Nike", "Adidas", "New Balance", "Puma", "Vans"),
+        (50.0, 220.0),
+    ),
+    (
+        "apparel/mens-t-shirts",
+        "T-Shirt",
+        ("Uniqlo", "Nike", "Adidas", "Everlane", "Patagonia"),
+        (12.0, 80.0),
+    ),
+    (
+        "apparel/mens-jackets",
+        "Jacket",
+        ("Patagonia", "North Face", "Arc'teryx", "Columbia", "Carhartt"),
+        (60.0, 700.0),
+    ),
     ("apparel/mens-jeans", "Jeans", ("Levi's", "Wrangler", "Lee", "Gap", "Mavi"), (35.0, 250.0)),
-    ("apparel/womens-dresses", "Dress", ("Zara", "H&M", "Everlane", "Reformation", "Aritzia"), (30.0, 400.0)),
-    ("apparel/womens-handbags", "Handbag", ("Coach", "Kate Spade", "Michael Kors", "Longchamp", "Fossil"), (40.0, 1200.0)),
-    ("apparel/womens-boots", "Boots", ("Dr. Martens", "Timberland", "Sorel", "UGG", "Blundstone"), (70.0, 400.0)),
-    ("apparel/womens-sweaters", "Sweater", ("Uniqlo", "Everlane", "J.Crew", "Madewell", "Gap"), (30.0, 300.0)),
-    ("apparel/womens-activewear", "Leggings", ("Lululemon", "Nike", "Alo", "Athleta", "Fabletics"), (25.0, 250.0)),
-    ("beauty/skincare", "Skincare Set", ("CeraVe", "The Ordinary", "La Roche-Posay", "Paula's Choice", "Kiehl's"), (15.0, 300.0)),
-    ("beauty/haircare", "Hair Care Set", ("Olaplex", "Living Proof", "Redken", "Moroccanoil", "Pureology"), (20.0, 250.0)),
-    ("beauty/makeup", "Makeup Palette", ("Urban Decay", "MAC", "Fenty", "NARS", "Maybelline"), (15.0, 200.0)),
-    ("beauty/fragrance", "Fragrance", ("Chanel", "Dior", "Tom Ford", "Jo Malone", "Le Labo"), (40.0, 600.0)),
-    ("beauty/shaving", "Shaving Kit", ("Harry's", "Gillette", "Schick", "Dollar Shave Club", "Philips"), (15.0, 250.0)),
-    ("sports/yoga-mats", "Yoga Mat", ("Manduka", "Lululemon", "Gaiam", "Liforme", "Jade"), (20.0, 150.0)),
-    ("sports/dumbbells", "Dumbbell Set", ("Bowflex", "PowerBlock", "Rogue", "CAP Barbell", "Yes4All"), (30.0, 900.0)),
-    ("sports/resistance-bands", "Resistance Bands", ("TheraBand", "Fit Simplify", "Bodylastics", "WODFitters", "Tribe"), (10.0, 90.0)),
-    ("sports/treadmills", "Treadmill", ("NordicTrack", "Sole", "Peloton", "ProForm", "Horizon"), (400.0, 3500.0)),
-    ("sports/bicycles", "Bicycle", ("Trek", "Specialized", "Giant", "Cannondale", "Schwinn"), (200.0, 4000.0)),
+    (
+        "apparel/womens-dresses",
+        "Dress",
+        ("Zara", "H&M", "Everlane", "Reformation", "Aritzia"),
+        (30.0, 400.0),
+    ),
+    (
+        "apparel/womens-handbags",
+        "Handbag",
+        ("Coach", "Kate Spade", "Michael Kors", "Longchamp", "Fossil"),
+        (40.0, 1200.0),
+    ),
+    (
+        "apparel/womens-boots",
+        "Boots",
+        ("Dr. Martens", "Timberland", "Sorel", "UGG", "Blundstone"),
+        (70.0, 400.0),
+    ),
+    (
+        "apparel/womens-sweaters",
+        "Sweater",
+        ("Uniqlo", "Everlane", "J.Crew", "Madewell", "Gap"),
+        (30.0, 300.0),
+    ),
+    (
+        "apparel/womens-activewear",
+        "Leggings",
+        ("Lululemon", "Nike", "Alo", "Athleta", "Fabletics"),
+        (25.0, 250.0),
+    ),
+    (
+        "beauty/skincare",
+        "Skincare Set",
+        ("CeraVe", "The Ordinary", "La Roche-Posay", "Paula's Choice", "Kiehl's"),
+        (15.0, 300.0),
+    ),
+    (
+        "beauty/haircare",
+        "Hair Care Set",
+        ("Olaplex", "Living Proof", "Redken", "Moroccanoil", "Pureology"),
+        (20.0, 250.0),
+    ),
+    (
+        "beauty/makeup",
+        "Makeup Palette",
+        ("Urban Decay", "MAC", "Fenty", "NARS", "Maybelline"),
+        (15.0, 200.0),
+    ),
+    (
+        "beauty/fragrance",
+        "Fragrance",
+        ("Chanel", "Dior", "Tom Ford", "Jo Malone", "Le Labo"),
+        (40.0, 600.0),
+    ),
+    (
+        "beauty/shaving",
+        "Shaving Kit",
+        ("Harry's", "Gillette", "Schick", "Dollar Shave Club", "Philips"),
+        (15.0, 250.0),
+    ),
+    (
+        "sports/yoga-mats",
+        "Yoga Mat",
+        ("Manduka", "Lululemon", "Gaiam", "Liforme", "Jade"),
+        (20.0, 150.0),
+    ),
+    (
+        "sports/dumbbells",
+        "Dumbbell Set",
+        ("Bowflex", "PowerBlock", "Rogue", "CAP Barbell", "Yes4All"),
+        (30.0, 900.0),
+    ),
+    (
+        "sports/resistance-bands",
+        "Resistance Bands",
+        ("TheraBand", "Fit Simplify", "Bodylastics", "WODFitters", "Tribe"),
+        (10.0, 90.0),
+    ),
+    (
+        "sports/treadmills",
+        "Treadmill",
+        ("NordicTrack", "Sole", "Peloton", "ProForm", "Horizon"),
+        (400.0, 3500.0),
+    ),
+    (
+        "sports/bicycles",
+        "Bicycle",
+        ("Trek", "Specialized", "Giant", "Cannondale", "Schwinn"),
+        (200.0, 4000.0),
+    ),
 )
 
 
@@ -257,19 +484,14 @@ async def run() -> int:
     sessionmaker = get_sessionmaker()
 
     async with sessionmaker() as session:
-        current = (
-            await session.execute(select(func.count()).select_from(Item))
-        ).scalar_one()
+        current = (await session.execute(select(func.count()).select_from(Item))).scalar_one()
 
     if current >= TARGET_ITEMS:
         logger.info("catalogue already seeded (%d items) — skipping", current)
         async with sessionmaker() as session:
             index_present = (
                 await session.execute(
-                    text(
-                        "SELECT 1 FROM pg_class "
-                        "WHERE relname = 'item_embedding_ivfflat'"
-                    )
+                    text("SELECT 1 FROM pg_class WHERE relname = 'item_embedding_ivfflat'")
                 )
             ).scalar_one_or_none()
             if index_present:

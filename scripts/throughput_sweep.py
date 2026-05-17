@@ -14,6 +14,7 @@ already expects.
 
 from __future__ import annotations
 
+import contextlib
 import csv
 import os
 import shutil
@@ -48,10 +49,8 @@ def _max_rps_from_stats(stats_csv: Path) -> float:
     for r in rows:
         for k, v in r.items():
             if k and k.strip().lower() == "requests/s":
-                try:
+                with contextlib.suppress(TypeError, ValueError):
                     best = max(best, float(v))
-                except (TypeError, ValueError):
-                    pass
     return best
 
 

@@ -19,7 +19,7 @@ from typing import Any
 import yaml  # type: ignore[import-untyped]
 
 from click_rec.config import get_settings
-from click_rec.ranker.config import _resolve_path  # type: ignore[attr-defined]
+from click_rec.ranker.config import _resolve_path
 
 logger = logging.getLogger(__name__)
 

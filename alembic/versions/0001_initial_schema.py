@@ -9,6 +9,7 @@ co_click), the user_segment ENUM, and a GIN index on item.tsv for Phase 6 BM25.
 The ivfflat index on item.embedding is intentionally deferred to 0002 so it can
 be built on a populated table with meaningful centroids.
 """
+
 from __future__ import annotations
 
 from collections.abc import Sequence

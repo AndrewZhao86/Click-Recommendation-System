@@ -40,9 +40,7 @@ class _FakeRedisZ:
             z.pop(member, None)
         return len(to_remove)
 
-    async def zrange(
-        self, key: str, start: int, stop: int, withscores: bool = False
-    ) -> Any:
+    async def zrange(self, key: str, start: int, stop: int, withscores: bool = False) -> Any:
         self.calls.append(f"zrange:{key}")
         z = self.zsets.get(key, {})
         ordered = sorted(z.items(), key=lambda kv: kv[1])
@@ -93,9 +91,7 @@ async def test_refresh_trims_to_top_max(monkeypatch: pytest.MonkeyPatch) -> None
     get_settings.cache_clear()
 
     redis = _FakeRedisZ()
-    redis.zsets["items:top:electronics"] = {
-        f"i{i}".encode(): float(i) for i in range(25)
-    }
+    redis.zsets["items:top:electronics"] = {f"i{i}".encode(): float(i) for i in range(25)}
 
     settings = get_settings()
     try:
@@ -188,9 +184,7 @@ async def test_tick_iterates_all_matching_keys(monkeypatch: pytest.MonkeyPatch) 
 
 async def test_run_exits_when_stop_event_set(monkeypatch: pytest.MonkeyPatch) -> None:
     """Setting the stop event must wake the loop immediately — not after 60s."""
-    monkeypatch.setattr(
-        refresher_module, "get_redis", lambda: _FakeRedisZ()
-    )
+    monkeypatch.setattr(refresher_module, "get_redis", lambda: _FakeRedisZ())
 
     stop = asyncio.Event()
     task = asyncio.create_task(run_popularity_refresher(stop))

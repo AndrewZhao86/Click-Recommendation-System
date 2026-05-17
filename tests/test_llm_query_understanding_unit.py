@@ -97,9 +97,7 @@ async def test_cache_hit_skips_llm_call() -> None:
     redis_fake = _FakeRedis(get_returns=cached)
     models = _inject_client(_FakeResponse(text='{"category": "ignored"}'))
 
-    result = await understand_query(
-        "running shoes", redis_client=redis_fake, cfg=LLMConfig()
-    )
+    result = await understand_query("running shoes", redis_client=redis_fake, cfg=LLMConfig())
     assert result is not None
     assert result.category == "shoes"
     assert models.calls == 0  # never went to the LLM
@@ -112,9 +110,7 @@ async def test_cache_miss_calls_llm_then_setex() -> None:
     )
 
     cfg = LLMConfig()
-    result = await understand_query(
-        "cheap wireless headphones", redis_client=redis_fake, cfg=cfg
-    )
+    result = await understand_query("cheap wireless headphones", redis_client=redis_fake, cfg=cfg)
     assert result is not None
     assert result.category == "headphones"
     assert result.price_bias == schemas.PriceBias.low
@@ -146,9 +142,7 @@ async def test_redis_unavailable_falls_through_to_llm() -> None:
         _FakeResponse(text='{"category": "laptops", "attrs": [], "price_bias": null}')
     )
 
-    result = await understand_query(
-        "laptops", redis_client=redis_fake, cfg=LLMConfig()
-    )
+    result = await understand_query("laptops", redis_client=redis_fake, cfg=LLMConfig())
     assert result is not None
     assert result.category == "laptops"
     assert models.calls == 1

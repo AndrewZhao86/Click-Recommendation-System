@@ -71,7 +71,7 @@ async def replay_dlq(
         acks="all",
         enable_idempotence=True,
         linger_ms=5,
-        compression_type="lz4",
+        compression_type="gzip",
         value_serializer=orjson.dumps,
         key_serializer=lambda s: s.encode("utf-8") if s is not None else None,
     )
@@ -123,13 +123,15 @@ async def _handle_dlq_record(record: Any, producer: AIOKafkaProducer) -> str:
             "DLQ envelope itself unparseable, quarantining",
             extra={"partition": record.partition, "offset": record.offset, "error": str(exc)},
         )
-        _quarantine({
-            "stage": "envelope_parse_failed",
-            "partition": record.partition,
-            "offset": record.offset,
-            "raw": raw.decode("utf-8", errors="replace"),
-            "ts_ms": int(time.time() * 1000),
-        })
+        _quarantine(
+            {
+                "stage": "envelope_parse_failed",
+                "partition": record.partition,
+                "offset": record.offset,
+                "raw": raw.decode("utf-8", errors="replace"),
+                "ts_ms": int(time.time() * 1000),
+            }
+        )
         return "skipped"
 
     original_payload = dlq_msg.get("original_payload")

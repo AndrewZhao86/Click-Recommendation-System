@@ -57,7 +57,7 @@ async def _refresh_one_category(client: redis.Redis, key: str, settings: Any) ->
     # Read remaining members with scores for decay.
     members = await client.zrange(key, 0, -1, withscores=True)
     if members:
-        decayed: dict[bytes | str, float] = {}
+        decayed: dict[Any, float] = {}
         for raw_member, score in members:
             new_score = float(score) * decay
             # Drop members whose decayed score is effectively zero;

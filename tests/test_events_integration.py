@@ -77,7 +77,7 @@ def configured_settings(
 async def live_client(configured_settings: None) -> AsyncIterator[AsyncClient]:
     from click_rec.api.app import app
 
-    async with asgi_lifespan.LifespanManager(app):
+    async with asgi_lifespan.LifespanManager(app, startup_timeout=60):
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as c:
             yield c
@@ -121,9 +121,7 @@ async def _drain_clicks_topic(bootstrap: str, timeout_s: float = 10.0) -> list[d
     return messages
 
 
-async def test_click_publishes_to_kafka(
-    live_client: AsyncClient, kafka_container: Any
-) -> None:
+async def test_click_publishes_to_kafka(live_client: AsyncClient, kafka_container: Any) -> None:
     resp = await live_client.post("/events/click", json=_click_body())
     assert resp.status_code == 202
     eid = resp.json()["event_id"]

@@ -44,9 +44,7 @@ async def judge_ranking(
     if not ranked_top_10:
         return None
 
-    prompt = JUDGE_PROMPT.format(
-        query=query, ranked_block=_format_ranked_block(ranked_top_10[:10])
-    )
+    prompt = JUDGE_PROMPT.format(query=query, ranked_block=_format_ranked_block(ranked_top_10[:10]))
 
     try:
         client = await get_client()

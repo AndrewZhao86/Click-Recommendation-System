@@ -68,7 +68,8 @@ def configure_logging(level: str = "INFO") -> None:
     # multi-line traceback that breaks JSON-per-line tooling; the
     # default `format_exc_info` keeps the traceback as a single field.
     json_formatter = structlog.stdlib.ProcessorFormatter(
-        foreign_pre_chain=shared_processors + [
+        foreign_pre_chain=shared_processors
+        + [
             structlog.stdlib.ExtraAdder(),
         ],
         processors=[
@@ -91,13 +92,12 @@ def configure_logging(level: str = "INFO") -> None:
     root.setLevel(level.upper())
 
     structlog.configure(
-        processors=shared_processors + [
+        processors=shared_processors
+        + [
             structlog.processors.format_exc_info,
             structlog.stdlib.ProcessorFormatter.wrap_for_formatter,
         ],
-        wrapper_class=structlog.make_filtering_bound_logger(
-            logging.getLevelName(level.upper())
-        ),
+        wrapper_class=structlog.make_filtering_bound_logger(logging.getLevelName(level.upper())),
         context_class=dict,
         logger_factory=structlog.stdlib.LoggerFactory(),
         cache_logger_on_first_use=True,

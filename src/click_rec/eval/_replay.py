@@ -70,9 +70,7 @@ def bm25_only_cfg(cfg: RankerConfig) -> RankerConfig:
 # ============================================================ holdout dance
 
 
-async def holdout_remove(
-    redis_client: Any, user_id: str, item_id: str
-) -> float | None:
+async def holdout_remove(redis_client: Any, user_id: str, item_id: str) -> float | None:
     """ZSCORE → ZREM. Returns the prior score (or None if absent / no Redis)."""
     if redis_client is None:
         return None
@@ -148,12 +146,8 @@ async def eval_replay_pass(
                     cfg=cfg,
                 )
         finally:
-            await holdout_restore(
-                redis_client, user_id, clicked_item_id, prior_score
-            )
-        rels = [
-            1.0 if r.item.id == clicked_item_id else 0.0 for r in results
-        ]
+            await holdout_restore(redis_client, user_id, clicked_item_id, prior_score)
+        rels = [1.0 if r.item.id == clicked_item_id else 0.0 for r in results]
         ndcgs.append(ndcg_at_k(rels, k))
         mrrs.append(mrr_at_k(rels, k))
 
@@ -167,9 +161,7 @@ async def eval_replay_pass(
 # ============================================================ data loading
 
 
-def load_replay_triples(
-    path: Path, num_users: int
-) -> list[tuple[str, str, str]]:
+def load_replay_triples(path: Path, num_users: int) -> list[tuple[str, str, str]]:
     """Read replay-captured click events and hold out the LAST per user.
 
     Captures expected to be JSONL rows with at least:
@@ -196,9 +188,7 @@ def load_replay_triples(
                 continue
             last_by_user[user_id] = (query, item_id)
 
-    triples = [
-        (uid, q, iid) for uid, (q, iid) in list(last_by_user.items())[:num_users]
-    ]
+    triples = [(uid, q, iid) for uid, (q, iid) in list(last_by_user.items())[:num_users]]
     return triples
 
 

@@ -29,8 +29,13 @@ def _ranked(item_id: str, score: float = 0.5) -> RankedItemDTO:
         ),
         score=score,
         score_breakdown={
-            "bm25": 0.3, "vector": 0.2, "popularity": 0.0,
-            "recency": 0.0, "personal": 0.0, "co_click": 0.0, "price_fit": 0.0,
+            "bm25": 0.3,
+            "vector": 0.2,
+            "popularity": 0.0,
+            "recency": 0.0,
+            "personal": 0.0,
+            "co_click": 0.0,
+            "price_fit": 0.0,
         },
     )
 
@@ -96,7 +101,7 @@ async def test_rerank_reorders_per_canned_response() -> None:
         '{"items": ['
         '{"item_id": "b", "rank": 1, "rationale": "best fit"},'
         '{"item_id": "a", "rank": 2, "rationale": "ok"}'
-        ']}'
+        "]}"
     )
     _inject(_FakeResponse(text=canned))
 
@@ -114,9 +119,7 @@ async def test_rerank_reorders_per_canned_response() -> None:
 async def test_rerank_pads_with_hybrid_leftovers() -> None:
     """Items the LLM omitted appear at the tail in original order."""
     cands = [_ranked("a", 0.9), _ranked("b", 0.5), _ranked("c", 0.3)]
-    canned = (
-        '{"items": [{"item_id": "c", "rank": 1, "rationale": "zoom"}]}'
-    )
+    canned = '{"items": [{"item_id": "c", "rank": 1, "rationale": "zoom"}]}'
     _inject(_FakeResponse(text=canned))
 
     out = await rerank_top_k(
@@ -158,7 +161,11 @@ async def test_rerank_parse_error_returns_none() -> None:
 
 async def test_rationale_attached_to_dto() -> None:
     cands = [_ranked("a")]
-    _inject(_FakeResponse(text='{"items": [{"item_id": "a", "rank": 1, "rationale": "matches your history"}]}'))
+    _inject(
+        _FakeResponse(
+            text='{"items": [{"item_id": "a", "rank": 1, "rationale": "matches your history"}]}'
+        )
+    )
 
     out = await rerank_top_k(
         query="x", candidates=cands, user_profile_summary="cats: shoes", cfg=LLMConfig()
@@ -168,7 +175,5 @@ async def test_rationale_attached_to_dto() -> None:
 
 
 async def test_empty_candidates_returns_none() -> None:
-    out = await rerank_top_k(
-        query="x", candidates=[], user_profile_summary=None, cfg=LLMConfig()
-    )
+    out = await rerank_top_k(query="x", candidates=[], user_profile_summary=None, cfg=LLMConfig())
     assert out is None

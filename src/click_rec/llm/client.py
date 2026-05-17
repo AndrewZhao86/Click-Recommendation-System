@@ -218,18 +218,14 @@ class GeminiClient:
         start = time.monotonic()
         try:
             response = await asyncio.wait_for(
-                self._sdk.aio.models.generate_content(
-                    model=model, contents=prompt, config=config
-                ),
+                self._sdk.aio.models.generate_content(model=model, contents=prompt, config=config),
                 timeout=timeout,
             )
         except TimeoutError as exc:
             elapsed_ms = (time.monotonic() - start) * 1000.0
             llm_timeout_total.labels(use_case=use_case).inc()
             llm_request_total.labels(use_case=use_case, outcome="timeout").inc()
-            llm_request_latency_seconds.labels(use_case=use_case).observe(
-                elapsed_ms / 1000.0
-            )
+            llm_request_latency_seconds.labels(use_case=use_case).observe(elapsed_ms / 1000.0)
             logger.warning(
                 "llm_timeout",
                 extra={"use_case": use_case, "model": model, "timeout_s": timeout},
@@ -238,9 +234,7 @@ class GeminiClient:
         except Exception as exc:
             elapsed_ms = (time.monotonic() - start) * 1000.0
             llm_request_total.labels(use_case=use_case, outcome="error").inc()
-            llm_request_latency_seconds.labels(use_case=use_case).observe(
-                elapsed_ms / 1000.0
-            )
+            llm_request_latency_seconds.labels(use_case=use_case).observe(elapsed_ms / 1000.0)
             logger.exception(
                 "llm_error",
                 extra={"use_case": use_case, "model": model, "error": str(exc)},
@@ -252,9 +246,7 @@ class GeminiClient:
         if prompt_tok:
             llm_token_usage_total.labels(use_case=use_case, kind="prompt").inc(prompt_tok)
         if completion_tok:
-            llm_token_usage_total.labels(use_case=use_case, kind="completion").inc(
-                completion_tok
-            )
+            llm_token_usage_total.labels(use_case=use_case, kind="completion").inc(completion_tok)
         llm_request_latency_seconds.labels(use_case=use_case).observe(elapsed_ms / 1000.0)
 
         # Parse path.
@@ -305,9 +297,7 @@ def _extract_text(response: Any) -> str:
     return "".join(chunks).strip()
 
 
-def _parse_structured(
-    response: Any, schema: type[BaseModel], use_case: str
-) -> BaseModel | None:
+def _parse_structured(response: Any, schema: type[BaseModel], use_case: str) -> BaseModel | None:
     """Decode JSON from the response and validate against `schema`.
 
     The SDK exposes a `.parsed` attribute when `response_schema=` is set,

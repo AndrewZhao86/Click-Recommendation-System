@@ -120,8 +120,9 @@ class _FakeRedis:
     async def exists(self, key: str) -> int:
         return 1 if key in self.kv else 0
 
-    async def set(self, key: str, value: bytes, ex: int | None = None,
-                  nx: bool = False) -> bool | None:
+    async def set(
+        self, key: str, value: bytes, ex: int | None = None, nx: bool = False
+    ) -> bool | None:
         if nx and key in self.kv:
             return None
         self.kv[key] = value
@@ -157,6 +158,7 @@ class _FakeSession:
         # Detect the resolve_item_meta SELECT: returns (category, price).
         compiled = str(stmt)
         if "FROM item" in compiled and "WHERE" in compiled:
+
             class _Result:
                 def __init__(self, rows: dict[str, tuple[str, float]]) -> None:
                     self._rows = rows
@@ -166,6 +168,7 @@ class _FakeSession:
                     # needs deterministic data; this fallback returns
                     # None so we fail loudly if a test forgets.
                     return None
+
             return _Result(self.item_rows)
         return None
 
@@ -375,8 +378,7 @@ async def test_apply_enrichment_publishes_profile_update(monkeypatch: pytest.Mon
         return ("books/scifi", 12.50)
 
     monkeypatch.setattr(enrichment_module, "resolve_item_meta", fake_resolve)
-    monkeypatch.setattr(enrichment_module, "upsert_co_clicks",
-                        lambda session, items: _noop_async())
+    monkeypatch.setattr(enrichment_module, "upsert_co_clicks", lambda session, items: _noop_async())
 
     producer = _FakeProducer()
     redis_fake = _FakeRedis()
@@ -437,8 +439,9 @@ async def test_process_one_marks_processed_after_success(monkeypatch: pytest.Mon
 
     enrichment_called: list[ClickEventDTO] = []
 
-    async def fake_enrichment(*, event: ClickEventDTO, session: Any,
-                              redis_client: Any, producer: Any) -> None:
+    async def fake_enrichment(
+        *, event: ClickEventDTO, session: Any, redis_client: Any, producer: Any
+    ) -> None:
         # Assert the marker has NOT been set yet at this point.
         assert event.event_id not in marked
         enrichment_called.append(event)
@@ -479,8 +482,7 @@ async def test_process_one_skips_when_already_processed(monkeypatch: pytest.Monk
 
 
 async def test_process_one_poison_pill_to_dlq(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(consumer_module, "is_consumer_event_processed",
-                        _async_returning(False))
+    monkeypatch.setattr(consumer_module, "is_consumer_event_processed", _async_returning(False))
     producer = _FakeProducer()
     record = _FakeRecord(b"this is not json")
     outcome = await _process_one(record, producer, worker_id=0)  # type: ignore[arg-type]
@@ -499,8 +501,7 @@ async def test_process_one_retries_then_dlq(monkeypatch: pytest.MonkeyPatch) -> 
     Phase 4 review C4(a): the success-path marker MUST NOT be set when
     we end up in the DLQ branch.
     """
-    monkeypatch.setattr(consumer_module, "is_consumer_event_processed",
-                        _async_returning(False))
+    monkeypatch.setattr(consumer_module, "is_consumer_event_processed", _async_returning(False))
     marker_calls: list[UUID] = []
 
     async def fake_mark(event_id: UUID) -> None:
@@ -538,8 +539,7 @@ async def test_process_one_dlq_failure_returns_dlq_failed(
     """Phase 4 review C2: when DLQ publish itself fails, return DLQ_FAILED so
     the worker loop holds the offset back instead of silently advancing.
     """
-    monkeypatch.setattr(consumer_module, "is_consumer_event_processed",
-                        _async_returning(False))
+    monkeypatch.setattr(consumer_module, "is_consumer_event_processed", _async_returning(False))
 
     producer = _FakeProducer(fail=True)
     record = _FakeRecord(b"this is not json")
@@ -588,4 +588,5 @@ async def test_send_to_dlq_handles_malformed_payload_bytes() -> None:
 def _async_returning(value: Any) -> Any:
     async def _f(*_a: Any, **_k: Any) -> Any:
         return value
+
     return _f

@@ -87,11 +87,15 @@ async def _user_profile_summary(
         from sqlalchemy import text
 
         rows = (
-            await session.execute(
-                text("SELECT category, brand FROM item WHERE id = ANY(:ids)"),
-                {"ids": ctx.recent_item_ids},
+            (
+                await session.execute(
+                    text("SELECT category, brand FROM item WHERE id = ANY(:ids)"),
+                    {"ids": ctx.recent_item_ids},
+                )
             )
-        ).mappings().all()
+            .mappings()
+            .all()
+        )
 
     cats = [r["category"] for r in rows if r.get("category")]
     brands = [r["brand"] for r in rows if r.get("brand")]
@@ -154,9 +158,7 @@ async def _eval_llm_pass(
             else:
                 final = reordered[:k]
         finally:
-            await holdout_restore(
-                redis_client, user_id, clicked_item_id, prior_score
-            )
+            await holdout_restore(redis_client, user_id, clicked_item_id, prior_score)
 
         rels = [1.0 if r.item.id == clicked_item_id else 0.0 for r in final]
         ndcgs.append(ndcg_at_k(rels, k))
@@ -336,24 +338,18 @@ async def run_eval_llm(
 
     # Uplift: Pass B vs Pass A.
     if pass_a["ndcg"] > 0:
-        ndcg_uplift = (
-            (pass_b["ndcg"] - pass_a["ndcg"]) / pass_a["ndcg"] * 100.0
-        )
+        ndcg_uplift = (pass_b["ndcg"] - pass_a["ndcg"]) / pass_a["ndcg"] * 100.0
     else:
         ndcg_uplift = 0.0
 
     if pass_c["judge_hybrid"] > 0:
         judge_uplift = (
-            (pass_c["judge_llm"] - pass_c["judge_hybrid"])
-            / pass_c["judge_hybrid"]
-            * 100.0
+            (pass_c["judge_llm"] - pass_c["judge_hybrid"]) / pass_c["judge_hybrid"] * 100.0
         )
     else:
         judge_uplift = 0.0
 
-    timeout_rate = (
-        (pass_b["fallbacks"] / pass_b["n"] * 100.0) if pass_b["n"] > 0 else 0.0
-    )
+    timeout_rate = (pass_b["fallbacks"] / pass_b["n"] * 100.0) if pass_b["n"] > 0 else 0.0
 
     return {
         "hybrid_ndcg@10": pass_a["ndcg"],
@@ -392,8 +388,7 @@ def _print_markdown_table(results: dict[str, float]) -> None:
         f"{results['llm_mrr@10']:.4f}     |        |"
     )
     print(
-        f"| LLM fallback % |        |        | "
-        f"{results['llm_fallback_pct']:.1f}%      |        |"
+        f"| LLM fallback % |        |        | {results['llm_fallback_pct']:.1f}%      |        |"
     )
     if results["judge_sample_size"] > 0:
         print(
@@ -405,10 +400,7 @@ def _print_markdown_table(results: dict[str, float]) -> None:
     elif results["judge_skipped"] > 0:
         print("| Judge mean     | skipped (LLM unavailable)              |")
     print()
-    print(
-        f"replay_n={int(results['replay_n'])}  "
-        f"judge_n={int(results['judge_sample_size'])}"
-    )
+    print(f"replay_n={int(results['replay_n'])}  judge_n={int(results['judge_sample_size'])}")
 
 
 def _write_artifact(results: dict[str, float], output: Path) -> None:
@@ -427,19 +419,14 @@ async def run_eval_llm_cli(args: argparse.Namespace) -> int:
     """CLI driver — owns Redis + DB lifecycle."""
     settings = get_settings()
     output_arg: str | None = getattr(args, "output", None)
-    if output_arg:
-        artifacts_dir = Path(output_arg)
-    else:
-        artifacts_dir = Path(settings.eval_output_dir)
+    artifacts_dir = Path(output_arg) if output_arg else Path(settings.eval_output_dir)
     if artifacts_dir.suffix == ".json":
         output_path = artifacts_dir
     else:
         artifacts_dir.mkdir(parents=True, exist_ok=True)
         output_path = artifacts_dir / f"eval_llm_{int(time.time())}.json"
 
-    eval_log_path = (
-        Path(args.eval_log) if getattr(args, "eval_log", None) else None
-    )
+    eval_log_path = Path(args.eval_log) if getattr(args, "eval_log", None) else None
 
     redis_client: Any = None
     redis_started = False

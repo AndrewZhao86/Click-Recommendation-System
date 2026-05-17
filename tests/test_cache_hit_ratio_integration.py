@@ -103,15 +103,10 @@ def test_cache_hit_ratio_above_threshold() -> None:
 
     rng = random.Random(0xC4CE)
 
-    # Snapshot counters before driving traffic so the ratio reflects the
-    # *test's* contribution, not whatever has accumulated since the API
-    # started. Without this, an API that's been up for hours with cold
-    # cache traffic would dilute the measurement.
-    before_hits, before_misses = _hit_miss_totals(_scrape_metrics(_API_BASE))
-
     # Warmup: prime the cache for the top of the Zipf distribution. The
-    # 90% claim is about steady state, not first-hit; without warmup
-    # every request is a miss and the test would fail trivially.
+    # 90% claim is about steady state, not first-hit; warmup misses are
+    # intentionally excluded from the ratio measurement by snapshotting
+    # counters after warmup completes.
     for _ in range(_WARMUP_REQS):
         q = _zipf_choice(queries, rng)
         u = rng.choice(users)
@@ -128,6 +123,11 @@ def test_cache_hit_ratio_above_threshold() -> None:
             )
 
     import time
+
+    # Snapshot after warmup so only steady-state traffic is measured.
+    # Without this, cold-start misses from warmup dilute the ratio even
+    # when the cache is functioning correctly.
+    before_hits, before_misses = _hit_miss_totals(_scrape_metrics(_API_BASE))
 
     # Steady-state load: same Zipf mix the locustfile uses, but
     # single-process so we can measure ratio without contention noise.

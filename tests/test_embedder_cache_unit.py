@@ -68,9 +68,7 @@ def stub_model(monkeypatch: pytest.MonkeyPatch) -> dict[str, int]:
 
 
 def _hit_value(key_type: str) -> float:
-    return metrics.cache_hit_total.labels(
-        key_type=key_type, status="value"
-    )._value.get()  # type: ignore[attr-defined]
+    return metrics.cache_hit_total.labels(key_type=key_type, status="value")._value.get()  # type: ignore[attr-defined]
 
 
 def _miss_value(key_type: str) -> float:

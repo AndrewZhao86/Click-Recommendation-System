@@ -64,7 +64,7 @@ def _coerce_embedding(emb: object) -> list[float] | None:
         except ValueError:
             return None
     try:
-        return list(emb)  # numpy ndarray via pgvector asyncpg codec
+        return [float(x) for x in emb]  # type: ignore[attr-defined]
     except TypeError:
         return None
 
@@ -111,18 +111,12 @@ async def _bm25(session: AsyncSession, query: str, k: int) -> list[tuple[str, fl
     return [(row.id, float(row.bm25_score)) for row in res]
 
 
-async def _vector(
-    session: AsyncSession, qvec: list[float], k: int
-) -> list[tuple[str, float]]:
-    res = await session.execute(
-        _VECTOR_SQL, {"qvec": _format_vector(qvec), "k": k}
-    )
+async def _vector(session: AsyncSession, qvec: list[float], k: int) -> list[tuple[str, float]]:
+    res = await session.execute(_VECTOR_SQL, {"qvec": _format_vector(qvec), "k": k})
     return [(row.id, float(row.vector_score)) for row in res]
 
 
-async def _global_top_candidates(
-    redis_client: redis.Redis | None, k: int
-) -> list[RawCandidate]:
+async def _global_top_candidates(redis_client: redis.Redis | None, k: int) -> list[RawCandidate]:
     """Hard cold-start candidate pool: top-K from `items:top:_global`.
 
     Fail-open: any Redis error returns an empty list — the route layer
@@ -171,9 +165,7 @@ async def _category_top_candidates(
         for raw in members:
             item_id = raw.decode() if isinstance(raw, bytes) else raw
             if item_id not in seen:
-                seen[item_id] = RawCandidate(
-                    item_id=item_id, bm25_raw=None, vector_raw=None
-                )
+                seen[item_id] = RawCandidate(item_id=item_id, bm25_raw=None, vector_raw=None)
     return list(seen.values())
 
 
@@ -221,16 +213,12 @@ async def generate_candidates(
 
         merged: dict[str, RawCandidate] = {}
         for item_id, score in bm25_rows:
-            merged[item_id] = RawCandidate(
-                item_id=item_id, bm25_raw=score, vector_raw=None
-            )
+            merged[item_id] = RawCandidate(item_id=item_id, bm25_raw=score, vector_raw=None)
         for item_id, score in vector_rows:
             if item_id in merged:
                 merged[item_id].vector_raw = score
             else:
-                merged[item_id] = RawCandidate(
-                    item_id=item_id, bm25_raw=None, vector_raw=score
-                )
+                merged[item_id] = RawCandidate(item_id=item_id, bm25_raw=None, vector_raw=score)
 
         cands = list(merged.values())
         if len(cands) > cfg.candidate_cap:
@@ -242,8 +230,7 @@ async def generate_candidates(
     if profile_vec is not None:
         vector_rows = await _vector(session, profile_vec, cfg.vector_k)
         cands = [
-            RawCandidate(item_id=iid, bm25_raw=None, vector_raw=score)
-            for iid, score in vector_rows
+            RawCandidate(item_id=iid, bm25_raw=None, vector_raw=score) for iid, score in vector_rows
         ]
         if cands:
             if len(cands) > cfg.candidate_cap:
@@ -254,9 +241,7 @@ async def generate_candidates(
         # Spread the candidate budget evenly across the top categories so
         # one dominant category doesn't crowd out the rest.
         per_cat = max(1, cfg.candidate_cap // max(1, len(recent_categories)))
-        cands = await _category_top_candidates(
-            redis_client, recent_categories, per_cat
-        )
+        cands = await _category_top_candidates(redis_client, recent_categories, per_cat)
         if cands:
             if len(cands) > cfg.candidate_cap:
                 cands = cands[: cfg.candidate_cap]

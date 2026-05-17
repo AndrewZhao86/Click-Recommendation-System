@@ -31,9 +31,7 @@ class ClickEvent(Base):
     query: Mapped[str | None] = mapped_column(String(512), nullable=True)
     rank_position: Mapped[int] = mapped_column(Integer, nullable=False)
     dwell_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    client_ts: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+    client_ts: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     server_ts: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

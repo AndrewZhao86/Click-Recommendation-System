@@ -26,16 +26,10 @@ class BodySizeLimitMiddleware(BaseHTTPMiddleware):
         self._max_event_bytes = max_event_bytes
         self._max_batch_bytes = max_batch_bytes
 
-    async def dispatch(
-        self, request: Request, call_next: RequestResponseEndpoint
-    ) -> Response:
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         path = request.url.path
         if path.startswith("/events/"):
-            limit = (
-                self._max_batch_bytes
-                if path == "/events/batch"
-                else self._max_event_bytes
-            )
+            limit = self._max_batch_bytes if path == "/events/batch" else self._max_event_bytes
             cl = request.headers.get("content-length")
             if cl is not None:
                 try:

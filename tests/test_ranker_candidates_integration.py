@@ -172,9 +172,7 @@ async def test_typo_query_falls_through_to_vector_only(
     cfg = RankerConfig(bm25_k=10, vector_k=10, candidate_cap=20)
     qvec = _vec(seed=1)
     async with sm() as session:
-        cands = await generate_candidates(
-            query="asdfqwerty", qvec=qvec, session=session, cfg=cfg
-        )
+        cands = await generate_candidates(query="asdfqwerty", qvec=qvec, session=session, cfg=cfg)
     # Vector channel still surfaces results even when BM25 finds nothing.
     assert len(cands) > 0
     assert all(c.bm25_raw is None for c in cands)

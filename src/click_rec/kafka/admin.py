@@ -48,9 +48,7 @@ async def ensure_topics(
             return
         except Exception as exc:
             last_exc = exc
-            logger.warning(
-                "ensure_topics attempt %d/%d failed: %s", attempt, retries, exc
-            )
+            logger.warning("ensure_topics attempt %d/%d failed: %s", attempt, retries, exc)
         finally:
             if started:
                 with contextlib.suppress(Exception):

@@ -100,9 +100,7 @@ def _evict_negative_if_full(cache: set[str], cap: int) -> None:
             cache.discard(key)
 
 
-async def resolve_item_meta(
-    session: AsyncSession, item_id: str
-) -> tuple[str, float] | None:
+async def resolve_item_meta(session: AsyncSession, item_id: str) -> tuple[str, float] | None:
     """Return (category, price) for `item_id`, cached process-locally.
 
     Negative lookups (item not found) are also cached so a flood of bad
@@ -118,9 +116,7 @@ async def resolve_item_meta(
 
     settings = get_settings()
     row = (
-        await session.execute(
-            select(Item.category, Item.price).where(Item.id == item_id)
-        )
+        await session.execute(select(Item.category, Item.price).where(Item.id == item_id))
     ).first()
     if row is None:
         _evict_negative_if_full(_item_negative_cache, settings.item_cache_max_size)
@@ -132,9 +128,7 @@ async def resolve_item_meta(
     return category, price
 
 
-async def get_last_session_items(
-    redis_client: redis.Redis, user_id: str, n: int
-) -> list[str]:
+async def get_last_session_items(redis_client: redis.Redis, user_id: str, n: int) -> list[str]:
     """Return up to `n` most-recent item_ids for a user (newest first)."""
     raw = await redis_client.zrevrange(f"user:{user_id}:recent_clicks", 0, n - 1)
     return [b.decode() if isinstance(b, bytes) else b for b in raw]
@@ -160,9 +154,7 @@ async def update_recent_clicks(
     await pipe.execute()
 
 
-async def increment_popularity(
-    redis_client: redis.Redis, category: str, item_id: str
-) -> None:
+async def increment_popularity(redis_client: redis.Redis, category: str, item_id: str) -> None:
     """Bump the per-category counter, per-category sorted set, and the
     global sorted set.
 
@@ -214,9 +206,7 @@ async def upsert_co_clicks(session: AsyncSession, item_ids: list[str]) -> None:
     pairs = sorted({(min(a, b), max(a, b)) for a, b in itertools.combinations(unique, 2)})
     if not pairs:
         return
-    stmt = pg_insert(CoClick).values(
-        [{"item_a": a, "item_b": b, "count": 1} for a, b in pairs]
-    )
+    stmt = pg_insert(CoClick).values([{"item_a": a, "item_b": b, "count": 1} for a, b in pairs])
     stmt = stmt.on_conflict_do_update(
         index_elements=["item_a", "item_b"],
         set_={"count": CoClick.count + stmt.excluded.count},
@@ -276,9 +266,7 @@ async def apply_enrichment(
     category, _price = meta
     ts_ms = event.timestamp.timestamp() * 1000.0
 
-    prior_items = await get_last_session_items(
-        redis_client, event.user_id, settings.session_window
-    )
+    prior_items = await get_last_session_items(redis_client, event.user_id, settings.session_window)
     # C1: current click first, then prior items, then truncate. Without
     # this, prior_items already at length N pushes the current click out
     # of the slice.

@@ -240,9 +240,7 @@ async def test_stampede_100_concurrent_callers_select_once(
         get_settings.cache_clear()
 
     assert all(r is not None and r.id == "i_stampede" for r in results)
-    assert session.select_count == 1, (
-        f"expected exactly 1 DB read, got {session.select_count}"
-    )
+    assert session.select_count == 1, f"expected exactly 1 DB read, got {session.select_count}"
 
 
 # ============================================================ graceful degradation

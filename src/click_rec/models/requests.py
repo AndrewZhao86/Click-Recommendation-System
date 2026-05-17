@@ -57,6 +57,4 @@ BatchEvent = Annotated[
 class EventBatchRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    events: list[BatchEvent] = Field(
-        ..., min_length=1, max_length=MAX_BATCH_EVENTS
-    )
+    events: list[BatchEvent] = Field(..., min_length=1, max_length=MAX_BATCH_EVENTS)

@@ -83,9 +83,7 @@ def init_tracing(service_name: str | None = None) -> None:
             provider.add_span_processor(BatchSpanProcessor(ConsoleSpanExporter()))
         else:
             provider.add_span_processor(
-                BatchSpanProcessor(
-                    OTLPSpanExporter(endpoint=settings.otel_endpoint, insecure=True)
-                )
+                BatchSpanProcessor(OTLPSpanExporter(endpoint=settings.otel_endpoint, insecure=True))
             )
 
     trace.set_tracer_provider(provider)

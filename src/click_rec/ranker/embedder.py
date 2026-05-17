@@ -82,9 +82,7 @@ async def _load_model() -> Any:
         logger.info("loading ranker embedding model: %s", settings.embedding_model)
         # The constructor blocks on disk + torch init; offload it.
         loop = asyncio.get_running_loop()
-        _model = await loop.run_in_executor(
-            None, SentenceTransformer, settings.embedding_model
-        )
+        _model = await loop.run_in_executor(None, SentenceTransformer, settings.embedding_model)
         return _model
 
 
@@ -166,9 +164,7 @@ async def encode_query(query: str) -> list[float]:
 
     if client is not None:
         try:
-            await client.set(
-                key, _encode_payload(vec), ex=settings.query_embedding_ttl_seconds
-            )
+            await client.set(key, _encode_payload(vec), ex=settings.query_embedding_ttl_seconds)
         except _REDIS_ERRORS as exc:
             logger.warning(
                 "cache_unavailable: query embedding SET failed",

@@ -9,6 +9,7 @@ this index (idempotently) after bulk-loading items so centroids are learned from
 real embeddings rather than an empty table. Declaring it here as well keeps
 `alembic upgrade head` authoritative for anyone bootstrapping without the seeder.
 """
+
 from __future__ import annotations
 
 from collections.abc import Sequence

@@ -81,8 +81,7 @@ async def _eval_hand_pass(
                 cfg=cfg,
             )
         rels = [
-            1.0 if (r.item.category in cats or r.item.brand in brands) else 0.0
-            for r in results
+            1.0 if (r.item.category in cats or r.item.brand in brands) else 0.0 for r in results
         ]
         ndcgs.append(ndcg_at_k(rels, k))
         mrrs.append(mrr_at_k(rels, k))
@@ -131,12 +130,7 @@ async def run_offline_eval(
     artifacts_dir = Path(settings.eval_output_dir)
     eval_log = eval_log or (artifacts_dir / "eval_clicks.jsonl")
     if golden_path is None:
-        golden_path = (
-            Path(__file__).resolve().parents[3]
-            / "tests"
-            / "data"
-            / "golden_queries.json"
-        )
+        golden_path = Path(__file__).resolve().parents[3] / "tests" / "data" / "golden_queries.json"
 
     triples = load_replay_triples(eval_log, num_users)
     golden = _load_golden(golden_path)
@@ -172,20 +166,14 @@ async def run_offline_eval(
 
     # Headline uplift: replay if we have triples, else hand.
     if replay_hybrid["n"] > 0 and replay_bm25["ndcg"] > 0:
-        uplift = (
-            (replay_hybrid["ndcg"] - replay_bm25["ndcg"])
-            / replay_bm25["ndcg"]
-            * 100.0
-        )
+        uplift = (replay_hybrid["ndcg"] - replay_bm25["ndcg"]) / replay_bm25["ndcg"] * 100.0
         uplift_basis = "replay"
     elif hand_hybrid["n"] > 0 and hand_bm25["ndcg"] > 0:
         logger.warning(
             "no replay triples — falling back to hand-gold for uplift "
             "(QUALITATIVE only; do not interpret as a production number)"
         )
-        uplift = (
-            (hand_hybrid["ndcg"] - hand_bm25["ndcg"]) / hand_bm25["ndcg"] * 100.0
-        )
+        uplift = (hand_hybrid["ndcg"] - hand_bm25["ndcg"]) / hand_bm25["ndcg"] * 100.0
         uplift_basis = "hand"
     else:
         uplift = 0.0
@@ -233,10 +221,7 @@ def _print_markdown_table(results: dict[str, float]) -> None:
         f"{results['hand_hybrid_ndcg@10']:.4f} |        |"
     )
     print()
-    print(
-        f"replay_n={int(results['replay_n'])}  "
-        f"hand_n={int(results['hand_n'])}"
-    )
+    print(f"replay_n={int(results['replay_n'])}  hand_n={int(results['hand_n'])}")
 
 
 def _write_artifact(results: dict[str, float], output: Path) -> None:
@@ -260,9 +245,7 @@ async def run_offline_eval_cli(args: argparse.Namespace) -> int:
         artifacts_dir.mkdir(parents=True, exist_ok=True)
         output_path = artifacts_dir / f"eval_offline_{int(time.time())}.json"
 
-    eval_log_path = (
-        Path(args.eval_log) if getattr(args, "eval_log", None) else None
-    )
+    eval_log_path = Path(args.eval_log) if getattr(args, "eval_log", None) else None
     golden_path = Path(args.golden) if getattr(args, "golden", None) else None
 
     # Best-effort Redis startup — eval still runs without Redis (cold-start

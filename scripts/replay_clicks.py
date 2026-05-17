@@ -4,6 +4,7 @@ Produces events shaped like real user behaviour (Zipf query distribution,
 power-law rank positions, per-segment click bias) so Phase 4a consumers and
 Phase 6 rankers see meaningful signal without a UI.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -12,6 +13,7 @@ import logging
 import random
 import uuid
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -199,8 +201,9 @@ async def run(num_events: int, capture_eval_log: str | None = None) -> int:
         eval_path = capture_eval_log
         # Open in append mode so a partial run + resume doesn't lose data.
         import os as _os
+
         _os.makedirs(_os.path.dirname(eval_path) or ".", exist_ok=True)
-        eval_writer = open(eval_path, "a", encoding="utf-8")
+        eval_writer = Path(eval_path).open("a", encoding="utf-8")  # noqa: SIM115
         logger.info("eval log capture enabled: %s", eval_path)
 
     logger.info("ensuring kafka topics on %s...", settings.kafka_bootstrap)
@@ -278,9 +281,7 @@ async def run(num_events: int, capture_eval_log: str | None = None) -> int:
                     "result_ids": [c["id"] for c in top_k],
                     "page": 1,
                 }
-                await producer.send(
-                    USER_IMPRESSIONS.name, impression_event, key=user_id
-                )
+                await producer.send(USER_IMPRESSIONS.name, impression_event, key=user_id)
                 emitted += 1
 
                 num_clicks = rng.choices([0, 1, 2, 3], weights=[1, 3, 2, 1], k=1)[0]
@@ -311,9 +312,7 @@ async def run(num_events: int, capture_eval_log: str | None = None) -> int:
                         "rank_position": rank_position,
                         "dwell_ms": _sample_dwell_ms(rng),
                     }
-                    await producer.send(
-                        USER_CLICKS.name, click_event, key=user_id
-                    )
+                    await producer.send(USER_CLICKS.name, click_event, key=user_id)
                     if eval_writer is not None:
                         eval_writer.write(orjson.dumps(click_event).decode() + "\n")
                     emitted += 1

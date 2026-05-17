@@ -43,9 +43,7 @@ def postgres_container() -> Any:
 
 
 @pytest.fixture
-def configured_settings(
-    redis_container: Any, postgres_container: Any
-) -> Iterator[None]:
+def configured_settings(redis_container: Any, postgres_container: Any) -> Iterator[None]:
     mp = pytest.MonkeyPatch()
     redis_host = redis_container.get_container_host_ip()
     redis_port = redis_container.get_exposed_port(6379)
@@ -122,7 +120,8 @@ async def seeded_item(db_schema: None) -> str:
 
 
 async def test_stampede_single_query(
-    started_redis: None, seeded_item: str,
+    started_redis: None,
+    seeded_item: str,
 ) -> None:
     """100 concurrent cold-key reads → exactly 1 Postgres SELECT.
 
@@ -156,9 +155,7 @@ async def test_stampede_single_query(
         event.remove(engine.sync_engine, "before_cursor_execute", _before)
 
     assert all(r is not None and r.id == seeded_item for r in results)
-    assert select_count["n"] == 1, (
-        f"expected exactly 1 SELECT, got {select_count['n']}"
-    )
+    assert select_count["n"] == 1, f"expected exactly 1 SELECT, got {select_count['n']}"
 
 
 # ============================================================ graceful degradation

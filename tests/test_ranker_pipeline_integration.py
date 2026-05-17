@@ -37,9 +37,7 @@ def postgres_container() -> Any:
 
 
 @pytest.fixture
-def configured_settings(
-    redis_container: Any, postgres_container: Any
-) -> Iterator[None]:
+def configured_settings(redis_container: Any, postgres_container: Any) -> Iterator[None]:
     mp = pytest.MonkeyPatch()
     redis_host = redis_container.get_container_host_ip()
     redis_port = redis_container.get_exposed_port(6379)
@@ -318,6 +316,7 @@ async def test_redis_outage_degrades_gracefully(
 
                 async def execute(self_inner) -> Any:
                     raise RedisConnectionError("dead")
+
             return _P()
 
     sm = get_sessionmaker()

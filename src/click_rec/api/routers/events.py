@@ -51,9 +51,7 @@ async def _ingest_one(req: EventRequest, topic: str) -> dict[str, str]:
         # otherwise the key lives for `dedupe_ttl_seconds` and every retry
         # returns `duplicate` without reaching Kafka.
         await release_event_id(event_id)
-        logger.exception(
-            "kafka publish failed", extra={"event_id": str(event_id), "topic": topic}
-        )
+        logger.exception("kafka publish failed", extra={"event_id": str(event_id), "topic": topic})
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="kafka unavailable",

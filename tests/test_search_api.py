@@ -133,9 +133,7 @@ async def test_search_returns_200_with_breakdowns(
     assert stub_rank["query"] == "wireless headphones"
 
 
-async def test_search_default_limit_is_ten(
-    client: AsyncClient, stub_rank: dict[str, Any]
-) -> None:
+async def test_search_default_limit_is_ten(client: AsyncClient, stub_rank: dict[str, Any]) -> None:
     """Phase 8a default is 10 (down from Phase 6's interim 20)."""
     resp = await client.get("/search", params={"q": "x"})
     assert resp.status_code == 200
@@ -164,9 +162,7 @@ async def test_search_limit_bounds(client: AsyncClient, stub_rank: dict[str, Any
 async def test_search_passes_user_id_through(
     client: AsyncClient, stub_rank: dict[str, Any]
 ) -> None:
-    resp = await client.get(
-        "/search", params={"q": "shoes", "user_id": "u_42"}
-    )
+    resp = await client.get("/search", params={"q": "shoes", "user_id": "u_42"})
     assert resp.status_code == 200
     assert stub_rank["user_id"] == "u_42"
 
@@ -234,9 +230,7 @@ async def test_search_use_llm_true_attaches_rationales(
     monkeypatch.setattr(search_module, "understand_query", fake_qu)
     monkeypatch.setattr(search_module, "rerank_top_k", fake_rr)
 
-    resp = await client.get(
-        "/search", params={"q": "wireless headphones", "use_llm": "true"}
-    )
+    resp = await client.get("/search", params={"q": "wireless headphones", "use_llm": "true"})
     assert resp.status_code == 200
     body = resp.json()
     # Reversed order: i2 first, then i1.
@@ -295,9 +289,7 @@ async def test_search_intent_failure_does_not_block_rerank(
     monkeypatch.setattr(search_module, "understand_query", fake_qu)
     monkeypatch.setattr(search_module, "rerank_top_k", fake_rr)
 
-    resp = await client.get(
-        "/search", params={"q": "x", "use_llm": "true"}
-    )
+    resp = await client.get("/search", params={"q": "x", "use_llm": "true"})
     assert resp.status_code == 200
     assert rr_called["called"] is True
 

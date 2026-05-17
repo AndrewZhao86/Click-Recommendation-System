@@ -240,9 +240,7 @@ async def test_co_click_respects_canonicalisation() -> None:
         ]
     )
     cands = [_cand("i1"), _cand("i2"), _cand("i3")]
-    out = await co_click_scores(
-        cands, recent_item_ids=["a0", "z9"], session=session
-    )
+    out = await co_click_scores(cands, recent_item_ids=["a0", "z9"], session=session)
     assert out == [5.0, 3.0, 0.0]
     # The SQL was called with both lists, in either direction.
     params = session.executed[0]

@@ -37,9 +37,7 @@ def _format_candidate_block(candidates: list[RankedItemDTO]) -> str:
     lines: list[str] = []
     for c in candidates:
         breakdown = c.score_breakdown or {}
-        top_feats = sorted(
-            breakdown.items(), key=lambda kv: kv[1], reverse=True
-        )[:3]
+        top_feats = sorted(breakdown.items(), key=lambda kv: kv[1], reverse=True)[:3]
         feat_str = ", ".join(f"{k}={v:.2f}" for k, v in top_feats) or "—"
         lines.append(
             f"{c.item.id} | {c.item.title} | {c.item.category} | "
@@ -48,9 +46,7 @@ def _format_candidate_block(candidates: list[RankedItemDTO]) -> str:
     return "\n".join(lines)
 
 
-def _reorder(
-    candidates: list[RankedItemDTO], rerank: RerankResult
-) -> list[RankedItemDTO]:
+def _reorder(candidates: list[RankedItemDTO], rerank: RerankResult) -> list[RankedItemDTO]:
     """Reorder candidates by `rerank.items.rank` and attach rationales.
 
     Items the LLM omitted (e.g. it returned only 8 of 10) are tail-padded

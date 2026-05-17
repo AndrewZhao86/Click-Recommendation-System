@@ -49,3 +49,6 @@ project-notes.md
 planning/
 
 context.md
+
+# Test output logs
+*.log

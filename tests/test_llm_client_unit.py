@@ -59,9 +59,7 @@ class _FakeModels:
         self.sleep_s = sleep_s
         self.calls: list[dict[str, Any]] = []
 
-    async def generate_content(
-        self, *, model: str, contents: str, config: Any
-    ) -> Any:
+    async def generate_content(self, *, model: str, contents: str, config: Any) -> Any:
         self.calls.append({"model": model, "contents": contents, "config": config})
         if self.sleep_s > 0:
             await asyncio.sleep(self.sleep_s)

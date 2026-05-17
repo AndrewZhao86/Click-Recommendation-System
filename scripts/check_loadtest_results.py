@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """Phase 8c acceptance-criteria checker.
 
 Reads the artifacts produced by `make loadtest` and `make loadtest-sweep`
@@ -35,7 +34,6 @@ import argparse
 import csv
 import sys
 from pathlib import Path
-from typing import Any
 
 # Reconfigure stdout to UTF-8 so arrows, section symbols etc. render on
 # Windows consoles whose default encoding is cp1252.
@@ -54,6 +52,7 @@ DEFAULT_THROUGHPUT = "artifacts/throughput_vs_consumers.csv"
 
 
 # ── helpers ─────────────────────────────────────────────────────────────────
+
 
 def _pass(msg: str) -> None:
     print(f"  PASS  {msg}")
@@ -83,8 +82,10 @@ def _prometheus_counters(text: str, metric_name: str) -> float | None:
         if stripped.startswith("#"):
             continue
         # Match bare name or name{labels...}
-        if stripped.startswith(f"{metric_name}{{") or stripped == metric_name or (
-            stripped.startswith(metric_name + " ")
+        if (
+            stripped.startswith(f"{metric_name}{{")
+            or stripped == metric_name
+            or (stripped.startswith(metric_name + " "))
         ):
             parts = stripped.rsplit(" ", 1)
             if len(parts) == 2:
@@ -107,7 +108,7 @@ def _prometheus_gauges(text: str, metric_name: str) -> list[tuple[dict[str, str]
             continue
         # kafka_consumer_lag{group="x",partition="0",topic="user.clicks"} 42.0
         m = re.match(
-            rf'^{re.escape(metric_name)}\{{([^}}]*)\}}\s+([\d.e+\-]+)',
+            rf"^{re.escape(metric_name)}\{{([^}}]*)\}}\s+([\d.e+\-]+)",
             stripped,
         )
         if m:
@@ -120,6 +121,7 @@ def _prometheus_gauges(text: str, metric_name: str) -> list[tuple[dict[str, str]
 
 
 # ── check functions ──────────────────────────────────────────────────────────
+
 
 def check_locust_stats(stats_path: Path) -> list[str]:
     """Assert plan §8.8c criteria against Locust's aggregate stats CSV.
@@ -226,10 +228,7 @@ def check_throughput_scaling(csv_path: Path) -> list[str]:
             failures.append(msg)
         else:
             ratio = rps_curr / rps_prev if rps_prev > 0 else float("inf")
-            _pass(
-                f"N={n_prev} → N={n_curr}:  {rps_prev:.1f} → {rps_curr:.1f} RPS  "
-                f"(×{ratio:.2f})"
-            )
+            _pass(f"N={n_prev} → N={n_curr}:  {rps_prev:.1f} → {rps_curr:.1f} RPS  (×{ratio:.2f})")
 
     # ── ≥ 2× from N=1 to N=6 ────────────────────────────────────────────────
     n1_rps = next((r for n, r in data if n == 1), None)
@@ -320,6 +319,7 @@ def check_prometheus_metrics(base_url: str) -> list[str]:
 
 
 # ── main ─────────────────────────────────────────────────────────────────────
+
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(

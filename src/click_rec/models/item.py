@@ -25,12 +25,8 @@ class Item(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
-    popularity_score: Mapped[float] = mapped_column(
-        Float, nullable=False, server_default="0"
-    )
-    embedding: Mapped[list[float] | None] = mapped_column(
-        Vector(EMBEDDING_DIM), nullable=True
-    )
+    popularity_score: Mapped[float] = mapped_column(Float, nullable=False, server_default="0")
+    embedding: Mapped[list[float] | None] = mapped_column(Vector(EMBEDDING_DIM), nullable=True)
     tsv: Mapped[str | None] = mapped_column(
         TSVECTOR,
         Computed(
