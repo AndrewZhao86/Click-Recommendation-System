@@ -27,9 +27,10 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import Route
 
+_DEFAULT_BACKENDS = "127.0.0.1:8001,127.0.0.1:8002,127.0.0.1:8003,127.0.0.1:8004"
 BACKENDS = [
     b.strip()
-    for b in os.environ.get("BACKENDS", "127.0.0.1:8001,127.0.0.1:8002,127.0.0.1:8003,127.0.0.1:8004").split(",")
+    for b in os.environ.get("BACKENDS", _DEFAULT_BACKENDS).split(",")
     if b.strip()
 ]
 PROXY_PORT = int(os.environ.get("PROXY_PORT", "8000"))
@@ -93,8 +94,9 @@ async def _shutdown() -> None:
         await _client.aclose()
 
 
+_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"]
 app = Starlette(
-    routes=[Route("/{path:path}", _proxy, methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"])],
+    routes=[Route("/{path:path}", _proxy, methods=_METHODS)],
     on_startup=[_startup],
     on_shutdown=[_shutdown],
 )
