@@ -29,9 +29,7 @@ from starlette.routing import Route
 
 _DEFAULT_BACKENDS = "127.0.0.1:8001,127.0.0.1:8002,127.0.0.1:8003,127.0.0.1:8004"
 BACKENDS = [
-    b.strip()
-    for b in os.environ.get("BACKENDS", _DEFAULT_BACKENDS).split(",")
-    if b.strip()
+    b.strip() for b in os.environ.get("BACKENDS", _DEFAULT_BACKENDS).split(",") if b.strip()
 ]
 PROXY_PORT = int(os.environ.get("PROXY_PORT", "8000"))
 
